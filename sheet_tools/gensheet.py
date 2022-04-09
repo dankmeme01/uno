@@ -1,4 +1,6 @@
-fp = open("cards.png.sheet", 'w')
+from pathlib import Path
+
+fp = open(Path(__file__).parent.parent / "cards.png.sheet", 'w')
 
 beginx = x = 20
 beginy = y = 18
