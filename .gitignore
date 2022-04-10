@@ -1,2 +1,4 @@
 __pycache__
 *.log
+cards.psd
+sheet_tools/out

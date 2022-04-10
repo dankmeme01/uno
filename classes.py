@@ -155,10 +155,11 @@ class Entry(PygameObject):
 
 
 class Spritesheet:
-    def __init__(self, filename: str) -> None:
+    def __init__(self, filename: str, width: int = None) -> None:
         self.sheet = pygame.image.load(filename)
         self.fname = filename
         self.sprites = {}
+        self.width = width
         self.load_sprites()
 
     def get_image(self, x, y, width, height):
@@ -169,12 +170,19 @@ class Spritesheet:
     def get_sprites(self):
         return self.sprites
 
+    def get_sprite(self, key, default = None) -> pygame.Surface:
+        return self.sprites.get(key, default)
+
     def load_sprites(self):
         sheetfile = Path(self.fname + ".sheet")
         if sheetfile.is_file() and sheetfile.exists():
             with open(sheetfile, "r") as f:
                 for line in f:
                     name, x, y, width, height = line.split()
-                    self.sprites[name] = self.get_image(int(x), int(y), int(width), int(height))
+                    img = self.get_image(int(x), int(y), int(width), int(height))
+                    if self.width is not None:
+                        ratio = img.get_width() / self.width
+                        img = pygame.transform.scale(img, (int(img.get_width() / ratio), int(img.get_height() / ratio)))
+                    self.sprites[name] = img
         else:
             raise FileNotFoundError("No spritesheet file found for " + self.fname)

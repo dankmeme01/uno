@@ -1,9 +1,15 @@
 from pygame.locals import *
 from classes import *
 from networking import Client, Server
-from threading import Thread
+from unoengine import card_to_id
 import pygame
 import socket
+
+__version__ = "1.0-pre"
+# It works but still needs some work done.
+# both design, and player interaction.
+# Also the codebase is hot garbage in some places and needs a lot of changes.
+
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
@@ -56,17 +62,17 @@ shown_addr = False
 localready = False
 
 #game
-cardsheet = Spritesheet(str(Path(__file__).parent / 'cards.png'))
-
-
+cardsheet = Spritesheet(str(Path(__file__).parent / 'cards.png'), 50)
+drawbtn = Button(None, None, 950, 575, lambda: global_client.draw(), Text(24, "Draw", (127, 127, 127), (255, 255, 255)))
+drewncards = []
 
 def stop_game():
     global game_on, global_client, global_server
     game_on = False
-    if global_client:
+    if global_client and not global_client.stopped:
         global_client.stop()
         global_client = None
-    if global_server:
+    if global_server and not global_server.stopped:
         global_server.stop()
         global_server = None
 
@@ -125,7 +131,87 @@ def waitroomtick():
     update_objects(readybtn, infomsg, readystatus, hostlbl, totalplbl, iplbl if not shown_addr else addrlbl)
 
 def gametick():
-    pass
+    global global_client, drewncards
+    cl: Client = global_client
+    if cl.stopped:
+        print("Connection to the server has been ended.")
+        return stop_game()
+
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            return stop_game()
+
+        if cl.moving == cl.myindex:
+            pass_event(event, drawbtn)
+            if event.type == MOUSEBUTTONUP:
+                for cardid, rect in drewncards:
+                    mpos = pygame.mouse.get_pos()
+                    if rect.collidepoint(mpos):
+                        cl.place_card(cardid)
+                        break
+
+    # scatter all the players around
+    # depending on the amount of players, the scatter distance will be different
+    # all the players will be on the top, around y=50
+    # the more players, the more distance between them
+    thisone = 0
+    for p in cl.players:
+        if p.index == cl.myindex:
+            continue
+
+        midindex = (len(cl.players) - 1) // 2
+
+        px = SCREENSIZE[0] / 2 + (thisone - midindex) * (SCREENSIZE[0] / (len(cl.players) - 1))
+        py = 50
+        # draw their name
+
+        namewidth = SCREENSIZE[0] / 4        
+        if (len(cl.players) - 1) % 2 == 0:
+            px += namewidth / 2
+
+        name = Text(24, p.name, None, (255, 255, 255) if p.index != cl.moving else (0, 255, 0))
+        screen.blit(name.surface, name.surface.get_rect(center=(px, py)))
+        # draw their card amount
+
+        card = Text(24, f"{p.cards} cards", None, (255, 255, 255))
+        screen.blit(card.surface, card.surface.get_rect(center=(px, py + 30)))
+        thisone += 1
+    # now draw the topcard
+    topcard = cardsheet.get_sprite(card_to_id(cl.topcard))
+    if not topcard:
+        print("Card not found:", card_to_id(cl.topcard))
+    screen.blit(topcard, topcard.get_rect(center=(SCREENSIZE[0] / 2, SCREENSIZE[1] / 2)))
+    # now draw each of your cards in a straight line
+    # preferrably should be apart from each other
+    # but if there are too many, it can overlap
+    drewncards.clear()
+    for n, c in enumerate(cl.deck):
+        card = cardsheet.get_sprite(card_to_id(c))
+        midindex = len(cl.deck) // 2
+        cardwidth = card.get_rect().width
+
+        if len(cl.deck) > 1:
+            diff = ((SCREENSIZE[0] - 2*cardwidth) / (len(cl.deck) - 1))
+            if diff > cardwidth:
+                diff = cardwidth
+            x = SCREENSIZE[0] / 2 + (n - midindex) * diff
+            if len(cl.deck) % 2 == 0:
+                x += cardwidth / 2
+        else:
+            x = SCREENSIZE[0] / 2
+
+        y = SCREENSIZE[1] - 50
+        rect = card.get_rect(center=(x, y))
+        drewncards.append( (card_to_id(c), rect) )
+        screen.blit(card, rect)
+
+    # if we are moving, say that to the player
+    if cl.moving == cl.myindex:
+        infot = Text(36, "It's your turn!", None, (255, 0, 99))
+        screen.blit(infot.surface, infot.surface.get_rect(center=(SCREENSIZE[0] / 2, SCREENSIZE[1] / 2 + 150)))
+
+    if cl.moving == cl.myindex:
+        update_objects(drawbtn)
 
 while game_on:
     screen.fill((0, 0, 0))

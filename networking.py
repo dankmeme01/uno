@@ -1,6 +1,6 @@
 from datetime import datetime
 from threading import Thread, Lock
-from unoengine import Table, Player, Card
+from unoengine import Table, Player, Card, card_to_id, id_to_card
 from collections import namedtuple
 from pathlib import Path
 import socket
@@ -26,38 +26,47 @@ class Client(Netsock):
         self.serv_addr = address
         self.sendlock = Lock()
         self.loglock = Lock()
-        self.fp = open(Path(__file__).parent / "clientlog.txt", "w")
+        self.fp = open(Path(__file__).parent / "client.log", "w")
         self.sock.connect((address, PORT))
         self.log(f"Connected to {address}:{PORT}")
         # this is for gamestate
         self.init_values()
 
     def init_values(self):
-        self.players = []
-        self.lobbypls = []
-        self.deck = []
-        self.topcard = None
-        self.moving = None
-        self.clockwise = True
-        self.in_menu = True
-        self.is_ready = False
-        self.myindex = None
-        self.lastwinner = None
-        self.stopped = False
+        self.players: list[LocalPlayer] = []
+        self.lobbypls: list[tuple] = []
+        self.deck: list[Card] = []
+        self.topcard: Card = None
+        self.moving: int = None
+        self.clockwise: bool = True
+        self.in_menu: bool = True
+        self.is_ready: bool = False
+        self.myindex: int = None
+        self.lastwinner: str = None
+        self.stopped: bool = False
 
         self.readypl = 0
         self.totalpl = 0
 
     def query_event(self, etype, edata):
         with self.sendlock:
-            self.sock.send(json.dumps([etype, edata]).encode())
-            return json.loads(self.sock.recv(4096).decode())
+            try:
+                self.sock.send(json.dumps([etype, edata]).encode())
+                return json.loads(self.sock.recv(4096).decode())
+            except (ConnectionResetError, ConnectionAbortedError):
+                self.log("Connection closed")
+                self.stop()
+
 
     def ready(self):
         self.is_ready = self.query_event("ready", None)
 
     def place_card(self, card):
-        res = self.query_event("move", [card.color, card.type])
+        res = self.query_event("move", card if isinstance(card, str) else card_to_id(card))
+        return res
+
+    def draw(self):
+        res = self.query_event("draw", None)
         return res
 
     def mainloop(self):
@@ -87,7 +96,11 @@ class Client(Netsock):
                     self.myindex, state = resp
                     self.players = [LocalPlayer(name, i, cards) for name, i, cards in state]
 
-                self.moving, self.deck, self.topcard, self.clockwise = self.query_event("status", None)
+                res = self.query_event("status", None)
+                if self.stopped:
+                    break
+
+                self.moving, self.deck, self.topcard, self.clockwise = res
                 time.sleep(0.1)
     
         self.sock.close()
@@ -116,8 +129,13 @@ class ServerThread(Netsock):
         while True:
             if self.stopped:
                 break
+            
+            try:
+                data = self.sock.recv(4096).decode()
+            except (ConnectionResetError, ConnectionAbortedError):
+                self.log("Connection closed")
+                break
 
-            data = self.sock.recv(4096).decode()
             etype, edata = json.loads(data)
             if etype == 'exit':
                 break
@@ -155,10 +173,12 @@ class ServerThread(Netsock):
             case "move":
                 if self.table.indexof(self.name) != self.table.moving:
                     return False
-                if not self.table.validate_move(self.table.get_player(self.name), edata[0], edata[1]):
+
+                plcard = edata if isinstance(edata, list) else list(id_to_card(edata))
+                if not self.table.validate_move(self.table.get_player(self.name), plcard[0], plcard[1]):
                     return False
 
-                self.table.place(self.table.get_player(self.name), edata[0], edata[1])
+                self.table.place(self.table.get_player(self.name), plcard[0], plcard[1])
                 return True
             case "draw":
                 if self.table.indexof(self.name) != self.table.moving:
@@ -180,7 +200,7 @@ class Server(Netsock):
         self.stopped = False
         self.table = Table()
         self.loglock = Lock()
-        self.fp = open(Path(__file__).parent / "serverlog.txt", "w")
+        self.fp = open(Path(__file__).parent / "server.log", "w")
         self.sock.bind((self.address, PORT))
         self.sock.listen()
 

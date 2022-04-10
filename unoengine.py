@@ -11,18 +11,21 @@
 from collections import namedtuple
 import random
 
+CARD_AMOUNT = 7
+
 Card = namedtuple("Card", ["color", "type"])
 
 cards: list[Card] = []
 colors = ['red', 'blue', 'yellow', 'green']
 
-for i in colors:
-    cards.append(Card(i, 0))
+# XXX we will need zeros but theyre not in the sheet fsr
+#for i in colors:
+#    cards.append(Card(i, '0'))
 
 for x in range(0,2):
     for i in range(1,10):
         for color in colors:
-            cards.append(Card(color, i))
+            cards.append(Card(color, str(i)))
     for color in colors:
         cards.append(Card(color, 'block'))
         cards.append(Card(color, 'reverse'))
@@ -33,6 +36,14 @@ for x in range(0,2):
 # cards is a full deck of uno, 108 cards
 # i need to clean this up though
 # alot of garbage-
+
+def card_to_id(card: Card) -> str:
+    if type(card) == list:
+        card = Card(*card)
+    return card.color + '_' + str(card.type)
+
+def id_to_card(id: str) -> Card:
+    return Card(*id.split('_'))
 
 class Player:
     def __init__(self, name):
@@ -53,7 +64,7 @@ class Player:
         return False
 
     def removecard(self, search):
-        for n, card in self.deck:
+        for n, card in enumerate(self.deck):
             if card.color == search.color and card.type == search.type:
                 self.deck.pop(n)
                 return True
@@ -97,13 +108,27 @@ class Table:
                 return self.players.index(i)
         return None
 
+    def check_cards(self):
+        if len(self.deck) == 0:
+            self.deck = self.placedeck.copy()
+            random.shuffle(self.deck)
+            self.placedeck.clear()
+            self.placedeck.append(self.topcard)
+
     def start(self):
         topcard = random.choice(self.deck)
+        if topcard.color == 'wild':
+            topcard = Card(random.choice(colors), topcard.type)
         self.topcard = topcard
 
         self.placedeck = [topcard]
         self.deck.remove(topcard)
-        
+
+        for player in self.players:
+            for _ in range(0, CARD_AMOUNT):
+                player.deck.append(self.deck.pop())
+                self.check_cards()
+
         self.moving = random.randrange(0, len(self.players))
         self.started = True
 
@@ -126,12 +151,13 @@ class Table:
         card = Card(cardcolor, cardtype)
         player.removecard(card)
         self.placedeck.append(card)
-        self.topcard = Card(ccolor, card.type)
 
         if card.color == 'wild':
-            ccolor = random.choice(('red', 'blue', 'yellow', 'green')) # XXX ask the player
+            ccolor = random.choice(colors) # XXX ask the player
         else:
             ccolor = card.color
+
+        self.topcard = Card(ccolor, card.type)
         
         nextplayer = self.moving + (1 if self.clockwise else -1)
         if nextplayer == len(self.players):
@@ -142,15 +168,12 @@ class Table:
         if '+' in cardtype: # +4 or +2
             pl = self.players[nextplayer]
             for _ in range(0,int(cardtype[1:])):
-                if len(self.deck) == 0:
-                    self.deck = self.placedeck.copy()
-                    random.shuffle(self.deck)
-                    self.placedeck.clear()
+                self.check_cards()
                 pl.deck.append(self.deck.pop())
             self.nextmoving()
-        elif card['type'] == 'reverse':
+        elif card.type == 'reverse':
             self.clockwise = not self.clockwise
-        elif card['type'] == 'block':
+        elif card.type == 'block':
             self.nextmoving()
 
         self.nextmoving()
@@ -162,13 +185,10 @@ class Table:
                 break
 
     def draw(self, player: Player):
-        if len(self.deck) == 0:
-            self.deck = self.placedeck.copy()
-            random.shuffle(self.deck)
-            self.placedeck.clear()
-
+        self.check_cards()
         player.deck.append(self.deck.pop())
         self.nextmoving()
+        # XXX: Ask the player if they want to play the card, when available.
 
     def getplayer(self, name):
         plnames = [i.name for i in self.players]
