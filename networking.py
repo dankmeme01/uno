@@ -273,7 +273,7 @@ class Server(Netsock):
                 break
 
             user_sock, user_addr = self.sock.accept()
-            uname = socket.gethostbyaddr(user_sock.getsockname()[0])[0]
+            uname = socket.gethostbyaddr(user_sock.getpeername()[0])[0]
             self.log(f"Received connection from {uname} ({user_addr[0]}:{user_addr[1]})")
             if self.table.started: 
                 user_sock.send(b"Game already started")
