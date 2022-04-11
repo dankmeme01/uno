@@ -2,11 +2,17 @@ from pygame.locals import *
 from classes import *
 from networking import Client, Server
 from unoengine import card_to_id, id_to_card, Card
+from icecream import ic
 import pygame
 import socket
 
-__version__ = "1.4"
-# all works fine :)
+__version__ = "1.5-pre1"
+# issues i found:
+# if you have too many cards, it overlaps the draw btn
+# drawing a wild card from +2 or +4 auto assigns it to blue??
+# +4 sometimes gives 12 cards (lmao)
+# ? black screen and hung after game end
+# immediate color choose after using a drawn +4 or color
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
@@ -67,8 +73,8 @@ localready = False
 #game
 cardsheet = Spritesheet(str(Path(__file__).parent / 'cards.png'), 50)
 drawbtn = Button(None, None, 940, 565, lambda: global_client.draw(), Text(30, "Draw", (127, 127, 127), (255, 255, 255)))
-draw_take = Button(None, None, 875, 550, lambda: global_client.draw_take(), Text(30, "Take", (127, 127, 127), (255, 255, 255)))
-draw_place = Button(None, None, 975, 550, lambda: global_client.draw_place(), Text(30, "Place", (127, 127, 127), (255, 255, 255)))
+draw_take = Button(None, None, 880, 550, lambda: global_client.draw_take(), Text(30, "Take", (127, 127, 127), (255, 255, 255)))
+draw_place = Button(None, None, 970, 550, lambda: global_client.draw_place(), Text(30, "Place", (127, 127, 127), (255, 255, 255)))
 drewncards = []
 def stop_game():
     global game_on, global_client, global_server
@@ -86,7 +92,8 @@ def stop_game():
 
 def pass_event(event, *objects):
     for obj in objects:
-        obj.on_event(event)
+        if obj:
+            obj.on_event(event)
 
 def update_objects(*objects):
     for obj in objects:
@@ -142,143 +149,157 @@ def waitroomtick():
     update_objects(readybtn, infomsg, readystatus, hostlbl, totalplbl, iplbl if not shown_addr else addrlbl)
 
 def gametick():
-    global global_client, drewncards
+    global global_client, drewncards, state
     cl: Client = global_client
     if not cl.topcard:
+        state = "wait"
         return
 
     if cl.stopped:
         print("Connection to the server has been ended.")
         return stop_game()
 
-    objects = []
-    if global_client.showdraw:
-        objects.extend((draw_take, draw_place))
-    elif not cl.waiting_color and cl.moving == cl.myindex:
-        objects.append(drawbtn)
+    def draw_players():
+        thisone = 0
+        playersfixed = []
+        more = []
+        less = []
+        myindex = cl.myindex
+        indextable = {}
 
-    for event in pygame.event.get():
-        if event.type == QUIT:
-            return stop_game()
-        if cl.moving == cl.myindex and not cl.waiting_color:
-            if event.type == MOUSEBUTTONUP:
-                for cardid, rect in drewncards:
-                    mpos = pygame.mouse.get_pos()
-                    if rect.collidepoint(mpos):
-                        if id_to_card(cardid).color == 'wild':
-                            cl.waiting_color = id_to_card(cardid)
-                            break
-                        cl.place_card(cardid)
-                        break
+        for player in cl.players:
+            indextable[player.index] = player
+            if player.index > myindex:
+                more.append(player.index)
+            elif player.index < myindex:
+                less.append(player.index)
+        more.sort()
+        less.sort()
+        playersfixed = [indextable[player] for player in (more + less)]
 
-        elif cl.moving == cl.myindex and not not cl.waiting_color:
-            if event.type == MOUSEBUTTONUP:
-                colors = ("red","green","blue","yellow")
-                crects = {}
-                for n, color in enumerate(colors):
-                    x = 900 if n % 2 == 1 else 950
-                    y = 500 + n // 2 * 50
-                    crects[color] = pygame.Surface((45, 45)).get_rect(center=(x, y))
-                
-                for color, rect in crects.items():
-                    if rect.collidepoint(pygame.mouse.get_pos()):
-                        cl.place_card(Card(color, cl.waiting_color.type))
-                        cl.waiting_color = False
-                        break
+        for p in playersfixed:
+            midindex = (len(cl.players) - 1) // 2
 
-        pass_event(event, *objects)
-    update_objects(*objects)
-    # scatter all the players around
-    # depending on the amount of players, the scatter distance will be different
-    # all the players will be on the top, around y=50
-    # the more players, the more distance between them
-    thisone = 0
+            px = SCREENSIZE[0] / 2 + (thisone - midindex) * (SCREENSIZE[0] / (len(cl.players) - 1))
+            py = 50
+            # draw their name
 
-    playersfixed = []
-    # should first display all players with index > you
-    # and after that with index < you
-    more = []
-    less = []
-    myindex = cl.myindex
-    indextable = {}
+            namewidth = SCREENSIZE[0] / 4        
+            if len(playersfixed) % 2 == 0:
+                px += namewidth
 
-    for player in cl.players:
-        indextable[player.index] = player
-        if player.index > myindex:
-            more.append(player.index)
-        elif player.index < myindex:
-            less.append(player.index)
-    more.sort()
-    less.sort()
-    playersfixed = [indextable[player] for player in (more + less)]
+            name = Text(24, p.name, None, (255, 255, 255) if p.index != cl.moving else (0, 255, 0))
+            screen.blit(name.surface, name.surface.get_rect(center=(px, py)))
+            # draw their card amount
 
-    for p in playersfixed:
-        midindex = (len(cl.players) - 1) // 2
+            card = Text(24, f"{p.cards} cards", None, (255, 255, 255))
+            screen.blit(card.surface, card.surface.get_rect(center=(px, py + 30)))
+            thisone += 1
 
-        px = SCREENSIZE[0] / 2 + (thisone - midindex) * (SCREENSIZE[0] / (len(cl.players) - 1))
-        py = 50
-        # draw their name
+    def draw_deck():
+        drewncards.clear()
+        for n, c in enumerate(cl.deck):
+            card = cardsheet.get_sprite(card_to_id(c))
+            midindex = len(cl.deck) // 2
+            cardwidth = card.get_rect().width
 
-        namewidth = SCREENSIZE[0] / 4        
-        if len(playersfixed) % 2 == 0:
-            px += namewidth
+            if len(cl.deck) > 1:
+                diff = ((SCREENSIZE[0] - 2*cardwidth) / (len(cl.deck) - 1))
+                if diff > cardwidth:
+                    diff = cardwidth
+                x = SCREENSIZE[0] / 2 + (n - midindex) * diff
+                if len(cl.deck) % 2 == 0:
+                    x += cardwidth / 2
+            else:
+                x = SCREENSIZE[0] / 2
 
-        name = Text(24, p.name, None, (255, 255, 255) if p.index != cl.moving else (0, 255, 0))
-        screen.blit(name.surface, name.surface.get_rect(center=(px, py)))
-        # draw their card amount
+            y = SCREENSIZE[1] - 50
+            rect = card.get_rect(center=(x, y))
+            drewncards.append( (card_to_id(c), rect) )
+            screen.blit(card, rect)
 
-        card = Text(24, f"{p.cards} cards", None, (255, 255, 255))
-        screen.blit(card.surface, card.surface.get_rect(center=(px, py + 30)))
-        thisone += 1
-    # now draw the topcard
-    topcard = cardsheet.get_sprite(card_to_id(cl.topcard))
-    if not topcard:
-        print("Card not found:", card_to_id(cl.topcard))
-    screen.blit(topcard, topcard.get_rect(center=(SCREENSIZE[0] / 2, SCREENSIZE[1] / 2)))
-    # now draw each of your cards in a straight line
-    # preferrably should be apart from each other
-    # but if there are too many, it can overlap
-    drewncards.clear()
-    for n, c in enumerate(cl.deck):
-        card = cardsheet.get_sprite(card_to_id(c))
-        midindex = len(cl.deck) // 2
-        cardwidth = card.get_rect().width
+    def draw_topcard_indicators():
+        # now draw the topcard
+        topcard = cardsheet.get_sprite(card_to_id(cl.topcard))
+        if not topcard:
+            print("Card not found:", card_to_id(cl.topcard))
+        screen.blit(topcard, topcard.get_rect(center=(SCREENSIZE[0] / 2, SCREENSIZE[1] / 2)))
+        
 
-        if len(cl.deck) > 1:
-            diff = ((SCREENSIZE[0] - 2*cardwidth) / (len(cl.deck) - 1))
-            if diff > cardwidth:
-                diff = cardwidth
-            x = SCREENSIZE[0] / 2 + (n - midindex) * diff
-            if len(cl.deck) % 2 == 0:
-                x += cardwidth / 2
-        else:
-            x = SCREENSIZE[0] / 2
+        # if we are moving, say that to the player
+        if cl.moving == cl.myindex:
+            infot = Text(36, "It's your turn!", None, (255, 0, 99))
+            screen.blit(infot.surface, infot.surface.get_rect(center=(SCREENSIZE[0] / 2, SCREENSIZE[1] / 2 + 150)))
 
-        y = SCREENSIZE[1] - 50
-        rect = card.get_rect(center=(x, y))
-        drewncards.append( (card_to_id(c), rect) )
-        screen.blit(card, rect)
+        # if we are currently drawing a card, draw that to the screen
+        if global_client.showdraw:
+            card = cardsheet.get_sprite(card_to_id(global_client.showdraw))
+            screen.blit(card, card.get_rect(center=(925, 500)))
 
-    # if we are moving, say that to the player
-    if cl.moving == cl.myindex:
-        infot = Text(36, "It's your turn!", None, (255, 0, 99))
-        screen.blit(infot.surface, infot.surface.get_rect(center=(SCREENSIZE[0] / 2, SCREENSIZE[1] / 2 + 150)))
-
-    # if we are currently drawing a card, draw that to the screen
-    if global_client.showdraw:
-        card = cardsheet.get_sprite(card_to_id(global_client.showdraw))
-        screen.blit(card, card.get_rect(center=(925, 500)))
-
-    if not not cl.waiting_color:
-        # draw four squares for color selection in a 2x2 square
-        colors = ((255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0))
+        if not not cl.waiting_color:
+            # draw four squares for color selection in a 2x2 square
+            colors = ((255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0))
+            for n, color in enumerate(colors):
+                x = 900 if n % 2 == 1 else 950
+                y = 500 + n // 2 * 50
+                surf = pygame.Surface((45, 45))
+                surf.fill(color)
+                screen.blit(surf, surf.get_rect(center=(x, y)))
+    
+    def draw_drawbtn():
+        if global_client.showdraw:
+            update_objects(draw_take, draw_place)
+        elif not cl.waiting_color and cl.moving == cl.myindex:
+            update_objects(drawbtn)
+    
+    def update_color_choice():
+        colors = ("red","green","blue","yellow")
+        crects = {}
         for n, color in enumerate(colors):
             x = 900 if n % 2 == 1 else 950
             y = 500 + n // 2 * 50
-            surf = pygame.Surface((45, 45))
-            surf.fill(color)
-            rect = surf.get_rect(center=(x, y))
-            screen.blit(surf, surf.get_rect(center=(x, y)))
+            crects[color] = pygame.Surface((45, 45)).get_rect(center=(x, y))
+        
+        for color, rect in crects.items():
+            if rect.collidepoint(pygame.mouse.get_pos()):
+                ic(color, cl.waiting_color)
+                cl.place_card(Card(color, cl.waiting_color.type))
+                cl.waiting_color = False
+                break
+
+    def update_card_choice():
+        for cardid, rect in drewncards:
+            mpos = pygame.mouse.get_pos()
+            if rect.collidepoint(mpos):
+                if id_to_card(cardid).color == 'wild':
+                    cl.waiting_color = id_to_card(cardid)
+                    break
+                cl.place_card(cardid)
+                break
+
+    def update_draw_check_mousebtn():
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                return stop_game()
+
+            elif event.type == MOUSEBUTTONUP:
+                if cl.moving == cl.myindex and not cl.waiting_color:
+                    update_card_choice()
+
+                elif cl.moving == cl.myindex and not not cl.waiting_color:
+                    update_color_choice()
+            
+            if not not cl.showdraw:
+                pass_event(event, draw_place, draw_take)
+            pass_event(event, drawbtn)
+
+    
+    draw_players()
+    draw_deck()
+    draw_topcard_indicators()
+    draw_drawbtn()
+
+    update_draw_check_mousebtn()
 
 
 while game_on:

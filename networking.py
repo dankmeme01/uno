@@ -4,6 +4,7 @@ from threading import Thread, Lock
 from unoengine import Table, Player, Card, card_to_id, id_to_card
 from collections import namedtuple
 from pathlib import Path
+from icecream import ic
 import socket
 import select
 import json
@@ -70,10 +71,16 @@ class Client(Netsock):
         return res
 
     def draw_place(self):
+        ic()
+        if not self.showdraw:
+            return
+
         if self.showdraw.color == 'wild':
             self.waiting_color = Card(*self.showdraw)
+            ic(self.waiting_color)
             self.showdraw = None
         else:
+            ic()
             self.showdraw = None
             self.query_event("draw_place", None)
 
@@ -227,6 +234,7 @@ class ServerThread(Netsock):
                     return None
 
                 card = self.table.draw(self.player)
+                self.log(f"{self.name} drew {card}")
                 if isinstance(card, Card):
                     self.player.waiting_action = card
                     return card_to_id(card)

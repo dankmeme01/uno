@@ -73,7 +73,6 @@ class Label(PygameObject):
 class Button(PygameObject):
     def __init__(self, width, height, pos_x, pos_y, on_press, label: Display):
         self.label = label
-        self.pressed = False
         self.pressfunc = on_press
         # add 5 pixels on all sides to make it look better
         # for this, we make a new test surface that is 10 pixels bigger in both sides
@@ -91,14 +90,10 @@ class Button(PygameObject):
             super().__init__(width, height, pos_x, pos_y, label.surface)
 
     def on_event(self, event):
-        if event.type == MOUSEBUTTONDOWN:
+        if event.type == MOUSEBUTTONUP:
             point = pygame.mouse.get_pos()
             if self.rect.collidepoint(point):
-                self.pressed = True
                 self.pressfunc()
-
-        elif event.type == MOUSEBUTTONUP and self.pressed == True:
-            self.pressed = False
 
 
 class Entry(PygameObject):
@@ -134,7 +129,7 @@ class Entry(PygameObject):
         self.text = text
     
     def on_event(self, event):
-        if event.type == MOUSEBUTTONDOWN:
+        if event.type == MOUSEBUTTONUP:
             point = pygame.mouse.get_pos()
             if self.rect.collidepoint(point):
                 self.focused = True
