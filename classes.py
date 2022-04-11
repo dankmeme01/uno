@@ -18,6 +18,8 @@ class PygameObject:
         else:
             self.surface = surface
 
+        self.update_rect()
+
     def update_rect(self):
         if not self.surface:
             raise NotImplementedError("surface is not defined")

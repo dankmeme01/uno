@@ -1,9 +1,11 @@
+from ast import Break
 from datetime import datetime
 from threading import Thread, Lock
 from unoengine import Table, Player, Card, card_to_id, id_to_card
 from collections import namedtuple
 from pathlib import Path
 import socket
+import select
 import json
 import time
 
@@ -44,6 +46,8 @@ class Client(Netsock):
         self.myindex: int = None
         self.lastwinner: str = None
         self.stopped: bool = False
+        self.showdraw: Card = None
+        self.waiting_color: bool = False
 
         self.readypl = 0
         self.totalpl = 0
@@ -54,7 +58,6 @@ class Client(Netsock):
                 self.sock.send(json.dumps([etype, edata]).encode())
                 return json.loads(self.sock.recv(4096).decode())
             except (ConnectionResetError, ConnectionAbortedError):
-                self.log("Connection closed")
                 self.stop()
 
 
@@ -65,9 +68,22 @@ class Client(Netsock):
         res = self.query_event("move", card if isinstance(card, str) else card_to_id(card))
         return res
 
+    def draw_place(self):
+        if self.showdraw.color == 'wild':
+            self.waiting_color = Card(*self.showdraw)
+            self.showdraw = None
+        else:
+            self.showdraw = None
+            self.query_event("draw_place", None)
+
+    def draw_take(self):
+        self.showdraw = None
+        self.query_event("draw_take", None)
+
     def draw(self):
-        res = self.query_event("draw", None)
-        return res
+        self.showdraw = self.query_event("draw", None)
+        if self.showdraw is not None:
+            self.showdraw = id_to_card(self.showdraw)
 
     def mainloop(self):
         while True:
@@ -76,6 +92,9 @@ class Client(Netsock):
 
             if self.in_menu:
                 resp = self.query_event("menu_state", None)
+                if self.stopped:
+                    break
+
                 if resp == False:
                     self.in_menu = False
                 else:
@@ -101,6 +120,8 @@ class Client(Netsock):
                     break
 
                 self.moving, self.deck, self.topcard, self.clockwise = res
+                self.deck = [id_to_card(c) for c in self.deck]
+                self.topcard = id_to_card(self.topcard)
                 time.sleep(0.1)
     
         self.sock.close()
@@ -109,41 +130,49 @@ class Client(Netsock):
         self.stopped = True
         self.log("Stopping client")
         self.fp.close()
+        self.sock.close()
 
     def log(self, *args, **kwargs):
         with self.loglock:
             prefix = f'[C] [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]'
-            print(prefix, *args, **kwargs)
+            #print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=self.fp, flush=True)
 
 class ServerThread(Netsock):
     def __init__(self, sock: socket.socket, table: Table, name, logfp):
         self.sock = sock
+        self.sock.setblocking(0)
         self.name = name
         self.table = table
         self.stopped = False
         self.fp = logfp
         self.loglock = Lock()
+        self.player = self.table.get_player(self.name)
 
     def mainloop(self):
         while True:
             if self.stopped:
                 break
-            
             try:
+                ready = select.select([self.sock], [], [], 30)
+                if not ready[0]:
+                    self.log("AFK detected, no reply for 30 seconds. Closing connection.")
+                    break
                 data = self.sock.recv(4096).decode()
+                etype, edata = json.loads(data)
+                if etype == 'exit':
+                    break
+                reply = self.handle_event(etype, edata)
+                self.sock.send(json.dumps(reply).encode('utf-8'))
             except (ConnectionResetError, ConnectionAbortedError):
-                self.log("Connection closed")
                 break
-
-            etype, edata = json.loads(data)
-            if etype == 'exit':
-                break
-            reply = self.handle_event(etype, edata)
-            self.sock.send(json.dumps(reply).encode('utf-8'))
-        self.sock.close()
+    
+        self.table.remove_player(self.name)
+        self.stop()
 
     def stop(self):
+        self.log("Stopping thread..")
+        self.sock.close()
         self.stopped = True
 
     def handle_event(self, event, edata):
@@ -153,8 +182,8 @@ class ServerThread(Netsock):
                 return datetime.now().strftime("%H:%M:%S")
             case "ready":
                 if edata is None:
-                    edata = not self.table.get_player(self.name).ready
-                self.table.get_player(self.name).ready = edata
+                    edata = not self.player.ready
+                self.player.ready = edata
                 if self.table.check_all_ready() and len(self.table.players) > 1:
                     self.table.start()
                 return edata
@@ -169,27 +198,52 @@ class ServerThread(Netsock):
             case "status":
                 if not self.table.started:
                     return ("end", self.table.lastwinner if self.table.lastwinner else None)
-                return (self.table.moving, self.table.get_player(self.name).deck, self.table.topcard, self.table.clockwise)
+                return (self.table.moving, [card_to_id(c) for c in self.player.deck], card_to_id(self.table.topcard), self.table.clockwise)
             case "move":
-                if self.table.indexof(self.name) != self.table.moving:
+                plcard = Card(*edata) if isinstance(edata, list) else id_to_card(edata)
+                if isinstance(self.player.waiting_action, Card):
+                    if self.player.waiting_action.type == plcard.type and self.player.waiting_action.color == 'wild':
+                        self.player.waiting_action = None
+                        self.table.place(self.player, plcard)
+
+                if self.table.indexof(self.name) != self.table.moving or self.player.waiting_action:
                     return False
 
-                plcard = edata if isinstance(edata, list) else list(id_to_card(edata))
-                if not self.table.validate_move(self.table.get_player(self.name), plcard[0], plcard[1]):
+                if not self.table.validate_move(self.player, plcard):
                     return False
-
-                self.table.place(self.table.get_player(self.name), plcard[0], plcard[1])
+                self.table.place(self.player, plcard)
                 return True
             case "draw":
-                if self.table.indexof(self.name) != self.table.moving:
+                if self.table.indexof(self.name) != self.table.moving or self.player.waiting_action:
+                    return None
+
+                card = self.table.draw(self.player)
+                if isinstance(card, Card):
+                    self.player.waiting_action = card
+                    return card_to_id(card)
+                else:
+                    return None
+            case "draw_place":
+                if self.table.indexof(self.name) != self.table.moving or not self.player.waiting_action:
                     return False
-                self.table.draw(self.table.get_player(self.name))
+
+                self.table.place(self.player, self.player.waiting_action)
+                self.player.waiting_action = False
                 return True
+            case "draw_take":
+                if self.table.indexof(self.name) != self.table.moving or not self.player.waiting_action:
+                    return False
+
+                self.player.deck.append(self.player.waiting_action)
+                self.player.waiting_action = False
+                self.table.nextmoving()
+                return True
+
     
     def log(self, *args, **kwargs):
         with self.loglock:
             prefix = f'[S-{self.name}] [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]'
-            print(prefix, *args, **kwargs)
+            #print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=self.fp, flush=True)
 
 class Server(Netsock):
@@ -219,20 +273,22 @@ class Server(Netsock):
                 continue
             while self.table.get_player(uname):
                 uname += '-'
+            self.table.add_player(uname)
             server_thread = ServerThread(user_sock, self.table, uname, self.fp)
             server_thread.start()
             self.threads.append(server_thread)
-            self.table.add_player(uname)
         self.sock.close()
 
     def stop(self):
         [t.stop() for t in self.threads]
+        self.log("Stopping the main server..")
+        self.sock.close()
         self.stopped = True
     
     def log(self, *args, **kwargs):
         with self.loglock:
             prefix = f'[S] [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]'
-            print(prefix, *args, **kwargs)
+            #print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=self.fp, flush=True)
 
 """

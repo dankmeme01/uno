@@ -50,6 +50,7 @@ class Player:
         self.deck : list[Card] = []
         self.name = name
         self.ready = False
+        self.waiting_action = False
 
     def getdeck(self):
         return self.deck
@@ -59,13 +60,18 @@ class Player:
     
     def hascard(self, search):
         for card in self.deck:
-            if card.color == search.color and card.type == search.type:
+            if card.color == search.color \
+            or card.type == search.type \
+            or card.color == 'wild' \
+            or search.color == 'wild' \
+            or card.type == 'color' \
+            or card.type == '+4':
                 return True
         return False
 
     def removecard(self, search):
         for n, card in enumerate(self.deck):
-            if card.color == search.color and card.type == search.type:
+            if (card.color == search.color or search.type in ('+4', 'color')) and card.type == search.type:
                 self.deck.pop(n)
                 return True
         return False 
@@ -85,6 +91,17 @@ class Table:
         if self.started:
             raise ValueError("Game has already started.")
         self.players.append(Player(playername))
+
+    def remove_player(self, playername):
+        player = self.getplayer(playername)
+        pindex = self.players.index(player)
+        cachemoving = False
+        if self.moving == pindex:
+            cachemoving = True
+
+        self.players.pop(pindex)
+        if cachemoving:
+            self.nextmoving()
 
     def get_ready_players(self):
         n = 0
@@ -117,12 +134,13 @@ class Table:
 
     def start(self):
         topcard = random.choice(self.deck)
+        self.deck.remove(topcard)
+
         if topcard.color == 'wild':
             topcard = Card(random.choice(colors), topcard.type)
         self.topcard = topcard
 
         self.placedeck = [topcard]
-        self.deck.remove(topcard)
 
         for player in self.players:
             for _ in range(0, CARD_AMOUNT):
@@ -133,22 +151,25 @@ class Table:
         self.started = True
 
     def can_place(self, card):
-        return card.color == self.topcard.color or card.type == self.topcard.type or card.color == 'wild' or self.topcard.color == 'wild'
+        return card.color == self.topcard.color \
+            or card.type == self.topcard.type \
+            or card.color == 'wild' \
+            or self.topcard.color == 'wild' \
+            or card.type == 'color' \
+            or card.type == '+4'
 
-    def validate_move(self, player: Player, cardcolor, cardtype):
-        card = Card(cardcolor, cardtype)
+    def validate_move(self, player: Player, card):
         return self.can_place(card) and player.hascard(card)
     
     def nextmoving(self):
         self.moving = self.moving + (1 if self.clockwise else -1)
-        if self.moving == len(self.players):
+        if self.moving >= len(self.players):
             self.moving = 0
         elif self.moving == -1:
             self.moving = len(self.players) - 1
 
-    def place(self, player: Player, cardcolor, cardtype):
+    def place(self, player: Player, card):
         # no checks because we assume server is good :)
-        card = Card(cardcolor, cardtype)
         player.removecard(card)
         self.placedeck.append(card)
 
@@ -165,9 +186,9 @@ class Table:
         elif nextplayer == -1:
             nextplayer = len(self.players) - 1
 
-        if '+' in cardtype: # +4 or +2
+        if '+' in card.type: # +4 or +2
             pl = self.players[nextplayer]
-            for _ in range(0,int(cardtype[1:])):
+            for _ in range(0,int(card.type[1:])):
                 self.check_cards()
                 pl.deck.append(self.deck.pop())
             self.nextmoving()
@@ -184,11 +205,14 @@ class Table:
                 self.lastwinner = i.name
                 break
 
-    def draw(self, player: Player):
+    def draw(self, player: Player) -> Card:
         self.check_cards()
-        player.deck.append(self.deck.pop())
-        self.nextmoving()
-        # XXX: Ask the player if they want to play the card, when available.
+        card = self.deck.pop()
+        if not self.can_place(card):
+            player.deck.append(card)
+            self.nextmoving()
+            return False
+        return card
 
     def getplayer(self, name):
         plnames = [i.name for i in self.players]
