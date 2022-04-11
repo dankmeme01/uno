@@ -120,11 +120,13 @@ class Client(Netsock):
                 if res[0] == 'end':
                     self.init_values()
                     self.lastwinner = res[1]
+                    continue
 
                 if self.stopped:
                     break
 
-                self.moving, self.deck, self.topcard, self.clockwise = res
+                self.moving, self.deck, self.topcard, self.clockwise, players = res
+                self.players = [LocalPlayer(name, i, cards) for name, i, cards in players]
                 self.deck = [id_to_card(c) for c in self.deck]
                 self.topcard = id_to_card(self.topcard)
                 time.sleep(0.1)
@@ -205,7 +207,7 @@ class ServerThread(Netsock):
             case "status":
                 if not self.table.started:
                     return ("end", self.table.lastwinner if self.table.lastwinner else None)
-                return (self.table.moving, [card_to_id(c) for c in self.player.deck], card_to_id(self.table.topcard), self.table.clockwise)
+                return (self.table.moving, [card_to_id(c) for c in self.player.deck], card_to_id(self.table.topcard), self.table.clockwise, [(x.name, n, len(x.deck)) for n,x in enumerate(self.table.players)])
             case "move":
                 plcard = Card(*edata) if isinstance(edata, list) else id_to_card(edata)
                 if isinstance(self.player.waiting_action, Card):
