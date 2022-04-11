@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.2"
+__version__ = "1.3"
 # all works fine :)
 
 SCREENSIZE = (1000, 600)
