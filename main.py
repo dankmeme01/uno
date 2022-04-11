@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.1"
+__version__ = "1.2"
 # all works fine :)
 
 SCREENSIZE = (1000, 600)
@@ -80,6 +80,10 @@ def stop_game():
         global_server.stop()
         global_server = None
 
+    pygame.quit()
+    print("Bye!")
+    exit(0)
+
 def pass_event(event, *objects):
     for obj in objects:
         obj.on_event(event)
@@ -131,12 +135,18 @@ def waitroomtick():
             text = Text(24, name, None, (0, 255, 0) if ready else (255, 0, 0))
             screen.blit(text.surface, text.surface.get_rect(center=(x, y)))
 
+    if cl.lastwinner is not None:
+        txt = Text(32, "Winner: " + cl.lastwinner, None, (255, 255, 255))
+        screen.blit(txt.surface, txt.surface.get_rect(center=(500, 70)))
 
     update_objects(readybtn, infomsg, readystatus, hostlbl, totalplbl, iplbl if not shown_addr else addrlbl)
 
 def gametick():
     global global_client, drewncards
     cl: Client = global_client
+    if not cl.topcard:
+        return
+
     if cl.stopped:
         print("Connection to the server has been ended.")
         return stop_game()

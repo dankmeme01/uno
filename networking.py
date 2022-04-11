@@ -28,7 +28,8 @@ class Client(Netsock):
         self.serv_addr = address
         self.sendlock = Lock()
         self.loglock = Lock()
-        self.fp = open(Path(__file__).parent / "client.log", "w")
+        self.fp = Path(__file__).parent / "client.log"
+        open(self.fp, 'w').close()
         self.sock.connect((address, PORT))
         self.log(f"Connected to {address}:{PORT}")
         # this is for gamestate
@@ -116,6 +117,10 @@ class Client(Netsock):
                     self.players = [LocalPlayer(name, i, cards) for name, i, cards in state]
 
                 res = self.query_event("status", None)
+                if res[0] == 'end':
+                    self.init_values()
+                    self.lastwinner = res[1]
+
                 if self.stopped:
                     break
 
@@ -129,14 +134,13 @@ class Client(Netsock):
     def stop(self):
         self.stopped = True
         self.log("Stopping client")
-        self.fp.close()
         self.sock.close()
 
     def log(self, *args, **kwargs):
-        with self.loglock:
+        with self.loglock, open(self.fp, 'a') as fp:
             prefix = f'[C] [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]'
             #print(prefix, *args, **kwargs)
-            print(prefix, *args, **kwargs, file=self.fp, flush=True)
+            print(prefix, *args, **kwargs, file=fp, flush=True)
 
 class ServerThread(Netsock):
     def __init__(self, sock: socket.socket, table: Table, name, logfp):
@@ -159,6 +163,9 @@ class ServerThread(Netsock):
                     self.log("AFK detected, no reply for 30 seconds. Closing connection.")
                     break
                 data = self.sock.recv(4096).decode()
+                if not data or self.stopped:
+                    break
+
                 etype, edata = json.loads(data)
                 if etype == 'exit':
                     break
@@ -241,10 +248,10 @@ class ServerThread(Netsock):
 
     
     def log(self, *args, **kwargs):
-        with self.loglock:
+        with self.loglock, open(self.fp, 'a') as fp:
             prefix = f'[S-{self.name}] [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]'
             #print(prefix, *args, **kwargs)
-            print(prefix, *args, **kwargs, file=self.fp, flush=True)
+            print(prefix, *args, **kwargs, file=fp, flush=True)
 
 class Server(Netsock):
     def __init__(self):
@@ -254,7 +261,8 @@ class Server(Netsock):
         self.stopped = False
         self.table = Table()
         self.loglock = Lock()
-        self.fp = open(Path(__file__).parent / "server.log", "w")
+        self.fp = Path(__file__).parent / "server.log"
+        open(self.fp, 'w').close()
         self.sock.bind((self.address, PORT))
         self.sock.listen()
 
@@ -286,10 +294,10 @@ class Server(Netsock):
         self.stopped = True
     
     def log(self, *args, **kwargs):
-        with self.loglock:
+        with self.loglock, open(self.fp, 'a') as fp:
             prefix = f'[S] [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]'
             #print(prefix, *args, **kwargs)
-            print(prefix, *args, **kwargs, file=self.fp, flush=True)
+            print(prefix, *args, **kwargs, file=fp, flush=True)
 
 """
 
