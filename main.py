@@ -6,13 +6,13 @@ from icecream import ic
 import pygame
 import socket
 
-__version__ = "1.5-pre1"
+__version__ = "1.5-pre2"
 # issues i found:
-# if you have too many cards, it overlaps the draw btn
+# ? if you have too many cards, it overlaps the draw btn
 # drawing a wild card from +2 or +4 auto assigns it to blue??
-# +4 sometimes gives 12 cards (lmao)
+# ? +4 sometimes gives 12 cards (lmao)
 # ? black screen and hung after game end
-# immediate color choose after using a drawn +4 or color
+# ? immediate color choose after using a drawn +4 or color
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
@@ -72,9 +72,9 @@ localready = False
 
 #game
 cardsheet = Spritesheet(str(Path(__file__).parent / 'cards.png'), 50)
-drawbtn = Button(None, None, 940, 565, lambda: global_client.draw(), Text(30, "Draw", (127, 127, 127), (255, 255, 255)))
-draw_take = Button(None, None, 880, 550, lambda: global_client.draw_take(), Text(30, "Take", (127, 127, 127), (255, 255, 255)))
-draw_place = Button(None, None, 970, 550, lambda: global_client.draw_place(), Text(30, "Place", (127, 127, 127), (255, 255, 255)))
+drawbtn = Button(None, None, 930, 465, lambda: global_client.draw(), Text(30, "Draw", (127, 127, 127), (255, 255, 255)))
+draw_take = Button(None, None, 870, 450, lambda: global_client.draw_take(), Text(30, "Take", (127, 127, 127), (255, 255, 255)))
+draw_place = Button(None, None, 960, 450, lambda: global_client.draw_place(), Text(30, "Place", (127, 127, 127), (255, 255, 255)))
 drewncards = []
 def stop_game():
     global game_on, global_client, global_server
@@ -234,14 +234,14 @@ def gametick():
         # if we are currently drawing a card, draw that to the screen
         if global_client.showdraw:
             card = cardsheet.get_sprite(card_to_id(global_client.showdraw))
-            screen.blit(card, card.get_rect(center=(925, 500)))
+            screen.blit(card, card.get_rect(center=(915, 400)))
 
         if not not cl.waiting_color:
             # draw four squares for color selection in a 2x2 square
             colors = ((255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0))
             for n, color in enumerate(colors):
-                x = 900 if n % 2 == 1 else 950
-                y = 500 + n // 2 * 50
+                x = 890 if n % 2 == 1 else 940
+                y = 400 + n // 2 * 50
                 surf = pygame.Surface((45, 45))
                 surf.fill(color)
                 screen.blit(surf, surf.get_rect(center=(x, y)))
@@ -256,8 +256,8 @@ def gametick():
         colors = ("red","green","blue","yellow")
         crects = {}
         for n, color in enumerate(colors):
-            x = 900 if n % 2 == 1 else 950
-            y = 500 + n // 2 * 50
+            x = 890 if n % 2 == 1 else 940
+            y = 400 + n // 2 * 50
             crects[color] = pygame.Surface((45, 45)).get_rect(center=(x, y))
         
         for color, rect in crects.items():
@@ -268,7 +268,7 @@ def gametick():
                 break
 
     def update_card_choice():
-        for cardid, rect in drewncards:
+        for cardid, rect in drewncards[::-1]: # reverse the list so it works better if you have too many cards
             mpos = pygame.mouse.get_pos()
             if rect.collidepoint(mpos):
                 if id_to_card(cardid).color == 'wild':
@@ -291,7 +291,8 @@ def gametick():
             
             if not not cl.showdraw:
                 pass_event(event, draw_place, draw_take)
-            pass_event(event, drawbtn)
+            else:
+                pass_event(event, drawbtn)
 
     
     draw_players()

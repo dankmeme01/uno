@@ -71,7 +71,6 @@ class Client(Netsock):
         return res
 
     def draw_place(self):
-        ic()
         if not self.showdraw:
             return
 
@@ -80,7 +79,6 @@ class Client(Netsock):
             ic(self.waiting_color)
             self.showdraw = None
         else:
-            ic()
             self.showdraw = None
             self.query_event("draw_place", None)
 
@@ -124,13 +122,13 @@ class Client(Netsock):
                     self.players = [LocalPlayer(name, i, cards) for name, i, cards in state]
 
                 res = self.query_event("status", None)
+                if self.stopped:
+                    break
+
                 if res[0] == 'end':
                     self.init_values()
                     self.lastwinner = res[1]
                     continue
-
-                if self.stopped:
-                    break
 
                 self.moving, self.deck, self.topcard, self.clockwise, players = res
                 self.players = [LocalPlayer(name, i, cards) for name, i, cards in players]
@@ -192,6 +190,8 @@ class ServerThread(Netsock):
         self.stopped = True
 
     def handle_event(self, event, edata):
+        if event not in ("status", "menu_state"):
+            self.log(f"Event: {event}, edata: {edata}")
         # handles event
         match event:
             case "time":
