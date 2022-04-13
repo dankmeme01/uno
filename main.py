@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.6-pre5"
+__version__ = "1.6"
 # i don't know if this bug still exists, but i wont remove this yet
 # +4 sometimes gives 12 cards (lmao)
 
@@ -142,6 +142,11 @@ def waitroomtick():
         pass_event(event, readybtn, iplbl if not shown_addr else addrlbl)
 
     cl: Client = global_client
+
+    if cl.stopped:
+        print("Connection to the server has been ended.")
+        return stop_game()
+
     if not cl.in_menu:
         state = 'game'
         return

@@ -10,10 +10,17 @@ import json
 import time
 
 PORT = 48753
+DEBUG = False
+
 server_table = None
 printlock = Lock()
 
 LocalPlayer = namedtuple("LocalPlayer", ["name", "index", "cards"])
+
+if DEBUG:
+    from icecream import ic
+else:
+    ic = lambda *a, **kw: None
 
 class Netsock:
     def start(self):
@@ -165,7 +172,8 @@ class Client(Netsock):
     def log(self, *args, **kwargs):
         with self.loglock, open(self.fp, 'a') as fp:
             prefix = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [C]'
-            #print(prefix, *args, **kwargs)
+            if DEBUG:
+                print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=fp, flush=True)
 
 class ServerThread(Netsock):
@@ -240,6 +248,7 @@ class ServerThread(Netsock):
                         name += '-'
                 self.player.name = self.name = name
                 self.authed = True
+                return True
             case "ready":
                 if not self.authed:
                     return False
@@ -312,7 +321,8 @@ class ServerThread(Netsock):
     def log(self, *args, **kwargs):
         with self.loglock, open(self.fp, 'a') as fp:
             prefix = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [S-{self.name} ({self.sockname})]'
-            #print(prefix, *args, **kwargs)
+            if DEBUG:
+                print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=fp, flush=True)
 
 class Server(Netsock):
@@ -331,12 +341,16 @@ class Server(Netsock):
         self.sock.listen()
 
     def mainloop(self):
-        self.log(f"Starting to listen on {self.address}:{PORT}")
+        self.log(f"Starting to listen on {self.address}:{PORT}. Version: {self.version}")
         while True:
             if self.stopped:
                 break
+            
+            try:
+                user_sock, user_addr = self.sock.accept()
+            except OSError:
+                break
 
-            user_sock, user_addr = self.sock.accept()
             uname = socket.gethostbyaddr(user_sock.getpeername()[0])[0]
             self.log(f"Received connection from {uname} ({user_addr[0]}:{user_addr[1]})")
             if self.table.started: 
@@ -360,7 +374,8 @@ class Server(Netsock):
     def log(self, *args, **kwargs):
         with self.loglock, open(self.fp, 'a') as fp:
             prefix = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [S]'
-            #print(prefix, *args, **kwargs)
+            if DEBUG:
+                print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=fp, flush=True)
 
 """
