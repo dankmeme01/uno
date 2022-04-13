@@ -2,11 +2,10 @@ from pygame.locals import *
 from classes import *
 from networking import Client, Server
 from unoengine import card_to_id, id_to_card, Card
-from icecream import ic
 import pygame
 import socket
 
-__version__ = "1.5-pre4"
+__version__ = "1.5-pre5"
 # issues i found:
 # ? if you have too many cards, it overlaps the draw btn
 # ? drawing a wild card from +2 or +4 auto assigns it to blue??
@@ -262,7 +261,6 @@ def gametick():
         
         for color, rect in crects.items():
             if rect.collidepoint(pygame.mouse.get_pos()):
-                ic(color, cl.waiting_color)
                 cl.place_card(Card(color, cl.waiting_color.type))
                 cl.waiting_color = False
                 break
