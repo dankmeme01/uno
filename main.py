@@ -302,7 +302,7 @@ def gametick():
 
     update_draw_check_mousebtn()
 
-
+print("Starting up UNO version", __version__)
 while game_on:
     try:
         screen.fill((0, 0, 0))
