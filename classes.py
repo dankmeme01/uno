@@ -1,6 +1,7 @@
 import pygame
 from pygame.locals import *
 from pathlib import Path
+import json
 
 pygame.font.init()
 
@@ -183,3 +184,31 @@ class Spritesheet:
                     self.sprites[name] = img
         else:
             raise FileNotFoundError("No spritesheet file found for " + self.fname)
+
+class Settings:
+    def __init__(self, **kwargs) -> None:
+        self.values = kwargs
+
+    def get(self, key):
+        return self.values[key]
+
+    def set(self, key, value, dont_save = False):
+        self.values[key] = value
+
+    @classmethod
+    def from_json(cls, string):
+        return cls(**json.loads(string))
+
+    def to_json(self):
+        return json.dumps(self.values)
+
+    @classmethod
+    def load(cls, path):
+        path = Path(path)
+        with open(path, 'r') as f:
+            return cls.from_json(f.read())
+
+    def save(self, path):
+        path = Path(path)
+        with open(path, 'w') as f:
+            f.write(self.to_json())

@@ -78,7 +78,7 @@ class Player:
 
 class Table:
     def __init__(self):
-        self.players = []
+        self.players: list[Player] = []
         self.clockwise = True
         # moving is index of player who is yet to place a card.
         self.moving = None
@@ -147,6 +147,9 @@ class Table:
 
         for player in self.players:
             player.ready = False
+            player.waiting_action = False
+            player.deck = []
+
             for _ in range(0, CARD_AMOUNT):
                 player.deck.append(self.deck.pop())
                 self.check_cards()
@@ -198,6 +201,9 @@ class Table:
             self.nextmoving()
         elif card.type == 'reverse':
             self.clockwise = not self.clockwise
+            # official uno rules state that with 2 players, a reverse is same as block.
+            if len(self.players) == 2:
+                self.nextmoving()
         elif card.type == 'block':
             self.nextmoving()
 

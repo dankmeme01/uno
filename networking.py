@@ -1,9 +1,9 @@
-from ast import Break
 from datetime import datetime
 from threading import Thread, Lock
-from unoengine import Table, Player, Card, card_to_id, id_to_card
+from unoengine import Table, Card, card_to_id, id_to_card
 from collections import namedtuple
 from pathlib import Path
+import random
 import socket
 import select
 import json
@@ -23,11 +23,17 @@ class Netsock:
         raise NotImplementedError("Must inherit")
 
 class Client(Netsock):
-    def __init__(self, address):
+    def __init__(self, address, settings=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.serv_addr = address
+        self.name = socket.gethostname()
         self.sendlock = Lock()
         self.loglock = Lock()
+        self.settings = settings
+        self.setname = False
+        if self.settings:
+            self.name = self.settings.get('name')
+
         self.fp = Path(__file__).parent / "client.log"
         open(self.fp, 'w').close()
         self.sock.connect((address, PORT))
@@ -49,6 +55,7 @@ class Client(Netsock):
         self.stopped: bool = False
         self.showdraw: Card = None
         self.waiting_color: bool = False
+        self.prevres = None
 
         self.readypl = 0
         self.totalpl = 0
@@ -93,6 +100,10 @@ class Client(Netsock):
         while True:
             if self.stopped:
                 break
+            
+            if not self.setname:
+                self.query_event("set_name", self.name)
+                self.setname = True      
 
             if self.in_menu:
                 resp = self.query_event("menu_state", None)
@@ -127,6 +138,10 @@ class Client(Netsock):
                     self.init_values()
                     self.lastwinner = res[1]
                     continue
+                
+                if res != self.prevres:
+                    self.log(f'Status change. Moving: {res[0]}, topcard: {res[2]}, deck: {res[1]}')
+                    self.prevres = res
 
                 self.moving, self.deck, self.topcard, self.clockwise, players = res
                 self.players = [LocalPlayer(name, i, cards) for name, i, cards in players]
@@ -143,7 +158,7 @@ class Client(Netsock):
 
     def log(self, *args, **kwargs):
         with self.loglock, open(self.fp, 'a') as fp:
-            prefix = f'[C] [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]'
+            prefix = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [C]'
             #print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=fp, flush=True)
 
@@ -151,8 +166,9 @@ class ServerThread(Netsock):
     def __init__(self, sock: socket.socket, table: Table, name, logfp):
         self.sock = sock
         self.sock.setblocking(0)
+        self.sockname = name
         self.name = name
-        self.table = table
+        self.table: Table = table
         self.stopped = False
         self.fp = logfp
         self.loglock = Lock()
@@ -175,6 +191,9 @@ class ServerThread(Netsock):
                 if etype == 'exit':
                     break
                 reply = self.handle_event(etype, edata)
+                if etype not in ("status", "menu_state"):
+                    self.log(f"Event: {etype}, edata: {edata}, response: {reply}")
+
                 self.sock.send(json.dumps(reply).encode('utf-8'))
             except (ConnectionResetError, ConnectionAbortedError):
                 break
@@ -188,12 +207,25 @@ class ServerThread(Netsock):
         self.stopped = True
 
     def handle_event(self, event, edata):
-        if event not in ("status", "menu_state"):
-            self.log(f"Event: {event}, edata: {edata}")
         # handles event
         match event:
             case "time":
                 return datetime.now().strftime("%H:%M:%S")
+            case "set_name":
+                name = str(edata)
+                if len(name) > 24:
+                    name = name[:24]
+
+                names = [p.name for p in self.table.players]
+                while name in names:
+                    if name == '-'*24:
+                        name = f'Player-{random.randrange(1_000_000, 10_000_000)}'
+                    if len(name) >= 24:
+                        name = name[:24]
+                        name = name[:-1] + '-'
+                    else:
+                        name += '-'
+                self.player.name = self.name = name
             case "ready":
                 if edata is None:
                     edata = not self.player.ready
@@ -212,6 +244,11 @@ class ServerThread(Netsock):
             case "status":
                 if not self.table.started:
                     return ("end", self.table.lastwinner if self.table.lastwinner else None)
+
+                if len(self.table.players) < 2:
+                    self.table.started = False
+                    return ("end", self.table.lastwinner if self.table.lastwinner else None)
+
                 return (self.table.moving, [card_to_id(c) for c in self.player.deck], card_to_id(self.table.topcard), self.table.clockwise, [(x.name, n, len(x.deck)) for n,x in enumerate(self.table.players)])
             case "move":
                 plcard = Card(*edata) if isinstance(edata, list) else id_to_card(edata)
@@ -219,6 +256,7 @@ class ServerThread(Netsock):
                     if self.player.waiting_action.type == plcard.type and self.player.waiting_action.color == 'wild':
                         self.player.waiting_action = None
                         self.table.place(self.player, plcard)
+                        return True
 
                 if self.table.indexof(self.name) != self.table.moving or self.player.waiting_action:
                     return False
@@ -232,7 +270,6 @@ class ServerThread(Netsock):
                     return None
 
                 card = self.table.draw(self.player)
-                self.log(f"{self.name} drew {card}")
                 if isinstance(card, Card):
                     self.player.waiting_action = card
                     return card_to_id(card)
@@ -257,16 +294,17 @@ class ServerThread(Netsock):
     
     def log(self, *args, **kwargs):
         with self.loglock, open(self.fp, 'a') as fp:
-            prefix = f'[S-{self.name}] [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]'
+            prefix = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [S-{self.name} ({self.sockname})]'
             #print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=fp, flush=True)
 
 class Server(Netsock):
-    def __init__(self):
+    def __init__(self, settings=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.address = socket.gethostbyname(socket.gethostname())
         self.threads = []
         self.stopped = False
+        self.settings = settings
         self.table = Table()
         self.loglock = Lock()
         self.fp = Path(__file__).parent / "server.log"
@@ -303,7 +341,7 @@ class Server(Netsock):
     
     def log(self, *args, **kwargs):
         with self.loglock, open(self.fp, 'a') as fp:
-            prefix = f'[S] [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]'
+            prefix = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [S]'
             #print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=fp, flush=True)
 

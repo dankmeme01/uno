@@ -5,17 +5,20 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.5-pre5"
-# issues i found:
-# ? if you have too many cards, it overlaps the draw btn
-# ? drawing a wild card from +2 or +4 auto assigns it to blue??
-# ? +4 sometimes gives 12 cards (lmao)
-# ? black screen and hung after game end
-# ? immediate color choose after using a drawn +4 or color
+__version__ = "1.6-pre2"
+# one issue left:
+# +4 sometimes gives 12 cards (lmao)
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
 clock = pygame.time.Clock()
+
+settingpath = Path(__file__).parent / '.settings'
+if settingpath.exists():
+    settings = Settings.load(settingpath)
+else:
+    settings = Settings(name=socket.gethostname())
+    settings.save(settingpath)
 
 global_server = None
 global_client = None
@@ -28,7 +31,7 @@ def connect_to_game(addr):
     global global_client, ipaddrentry
     if not global_client:
         try:
-            global_client = Client(addr)
+            global_client = Client(addr, settings)
             global_client.start()
         except Exception as e:
             global_client = None
@@ -39,17 +42,22 @@ def connect_to_game(addr):
 def host_game():
     global global_server
     if not global_server:
-        global_server = Server()
+        global_server = Server(settings)
         global_server.start()
         while not global_server.address:
             pass
-        connect_to_game(global_server.address)
+        connect_to_game(global_server.address) 
+
+def set_state(state2: str):
+    global state
+    state = state2
 
 #menu
 hostbtn = Button(None, None, 500, 170, host_game, Text(48, "Host Game", (127, 127, 127), (255, 255, 255)))
 ipaddrentry = Entry(200, 50, 500, 300, maxchars=15, bgcolor=(127, 127, 127), fgcolor=(165, 165, 165), textcolor=(255, 255, 255), emptytext="IP Address", fontsize=24)
 clientbtn = Button(None, None, 500, 380, lambda: connect_to_game(ipaddrentry.get()), Text(48, "Connect", (127, 127, 127), (255, 255, 255)))
 lhostbtn = Button(None, None, 950, 575, lambda: ipaddrentry.set(socket.gethostbyname(socket.gethostname())), Text(24, "Localhost", (127, 127, 127), (255, 255, 255)))
+open_settings = Button(None, None, 50, 575, lambda: set_state('settings'), Text(24, "Settings", (127, 127, 127), (255, 255, 255)))
 
 #waitroom
 readybtn = Button(None, None, 500, 500, lambda: global_client.ready(), Text(32, "Ready", (127, 127, 127), (255, 255, 255)))
@@ -75,6 +83,14 @@ drawbtn = Button(None, None, 930, 465, lambda: global_client.draw(), Text(30, "D
 draw_take = Button(None, None, 870, 450, lambda: global_client.draw_take(), Text(30, "Take", (127, 127, 127), (255, 255, 255)))
 draw_place = Button(None, None, 960, 450, lambda: global_client.draw_place(), Text(30, "Place", (127, 127, 127), (255, 255, 255)))
 drewncards = []
+
+#settings
+curname = Label(None, None, 500, 100, Text(32, "Current name:", None, (255, 255, 255)))
+name_entry = Entry(200, 50, 500, 300, maxchars=24, bgcolor=(127, 127, 127), fgcolor=(165, 165, 165), textcolor=(255, 255, 255), emptytext="Type new name here", fontsize=24)
+set_name = Button(None, None, 500, 360, lambda: set_my_name(name_entry.get()), Text(36, "Set name", (127, 127, 127), (255, 255, 255)))
+default_name = Button(None, None, 500, 440, lambda: set_my_name(socket.gethostname()), Text(36, "Set default name", (127, 127, 127), (255, 255, 255)))
+close_settings = Button(None, None, 40, 575, lambda: set_state('menu'), Text(24, "Back", (127, 127, 127), (255, 255, 255)))
+
 def stop_game():
     global game_on, global_client, global_server
     game_on = False
@@ -88,6 +104,10 @@ def stop_game():
     pygame.quit()
     print("Bye!")
     exit(0)
+
+def set_my_name(name: str):
+    settings.set('name', name)
+    settings.save(settingpath)
 
 def pass_event(event, *objects):
     for obj in objects:
@@ -105,9 +125,9 @@ def menutick():
         if event.type == QUIT:
             return stop_game()
 
-        pass_event(event, hostbtn, ipaddrentry, clientbtn, lhostbtn)
+        pass_event(event, hostbtn, ipaddrentry, clientbtn, lhostbtn, open_settings)
 
-    update_objects(hostbtn, ipaddrentry, clientbtn, lhostbtn)
+    update_objects(hostbtn, ipaddrentry, clientbtn, lhostbtn, open_settings)
 
     if global_client:
         state = 'wait'
@@ -246,7 +266,7 @@ def gametick():
                 screen.blit(surf, surf.get_rect(center=(x, y)))
     
     def draw_drawbtn():
-        if global_client.showdraw:
+        if cl.showdraw:
             update_objects(draw_take, draw_place)
         elif not cl.waiting_color and cl.moving == cl.myindex:
             update_objects(drawbtn)
@@ -287,9 +307,9 @@ def gametick():
                 elif cl.moving == cl.myindex and not not cl.waiting_color:
                     update_color_choice()
             
-            if not not cl.showdraw:
+            if cl.showdraw:
                 pass_event(event, draw_place, draw_take)
-            else:
+            elif not cl.waiting_color and cl.moving == cl.myindex:
                 pass_event(event, drawbtn)
 
     
@@ -300,6 +320,19 @@ def gametick():
 
     update_draw_check_mousebtn()
 
+def settingstick():
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            return stop_game()
+
+        elif event.type == KEYDOWN and event.key == K_ESCAPE:
+            return set_state('menu')
+
+        pass_event(event, name_entry, set_name, default_name, close_settings)
+
+    curname.set_display(Text(32, "Current name: %s" % settings.get('name'), None, (255, 255, 255)))
+    update_objects(curname, name_entry, set_name, default_name, close_settings)
+
 print("Starting up UNO version", __version__)
 while game_on:
     try:
@@ -308,6 +341,8 @@ while game_on:
             menutick()
         elif state == 'wait':
             waitroomtick()
+        elif state == 'settings':
+            settingstick()
         else:
             gametick()
         
