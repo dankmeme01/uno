@@ -132,9 +132,9 @@ class Entry(PygameObject):
     def on_event(self, event):
         if event.type == MOUSEBUTTONUP:
             point = pygame.mouse.get_pos()
-            if self.rect.collidepoint(point):
+            if self.rect.collidepoint(point) and not self.focused:
                 self.focused = True
-                self.text = ""
+                self.text = "" if self.text == self.emptytext else self.text
             else:
                 self.focused = False
 

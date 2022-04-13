@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.6"
+__version__ = "1.6.1"
 # i don't know if this bug still exists, but i wont remove this yet
 # +4 sometimes gives 12 cards (lmao)
 
