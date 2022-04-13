@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.6-pre4"
+__version__ = "1.6-pre5"
 # i don't know if this bug still exists, but i wont remove this yet
 # +4 sometimes gives 12 cards (lmao)
 
@@ -31,7 +31,7 @@ def connect_to_game(addr):
     global global_client, ipaddrentry
     if not global_client:
         try:
-            global_client = Client(addr, settings)
+            global_client = Client(addr, __version__, settings)
             global_client.start()
         except Exception as e:
             global_client = None
@@ -42,7 +42,7 @@ def connect_to_game(addr):
 def host_game():
     global global_server
     if not global_server:
-        global_server = Server(settings)
+        global_server = Server(__version__, settings)
         global_server.start()
         while not global_server.address:
             pass

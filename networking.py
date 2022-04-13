@@ -23,14 +23,15 @@ class Netsock:
         raise NotImplementedError("Must inherit")
 
 class Client(Netsock):
-    def __init__(self, address, settings=None):
+    def __init__(self, address, version, settings=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.serv_addr = address
         self.name = socket.gethostname()
         self.sendlock = Lock()
         self.loglock = Lock()
         self.settings = settings
-        self.setname = False
+        self.version = version
+        self.auth = False
         if self.settings:
             self.name = self.settings.get('name')
 
@@ -102,9 +103,13 @@ class Client(Netsock):
             if self.stopped:
                 break
             
-            if not self.setname:
-                self.query_event("set_name", self.name)
-                self.setname = True      
+            if not self.auth:
+                self.auth = self.query_event("auth", [self.name, self.version])
+                if self.auth is not True:
+                    self.log("Failed to authorize. Message:", self.auth)
+                    self.auth = False
+                    self.stopped = True
+                    break
 
             if self.in_menu:
                 resp = self.query_event("menu_state", None)
@@ -164,14 +169,16 @@ class Client(Netsock):
             print(prefix, *args, **kwargs, file=fp, flush=True)
 
 class ServerThread(Netsock):
-    def __init__(self, sock: socket.socket, table: Table, name, logfp):
+    def __init__(self, sock: socket.socket, table: Table, name, logfp, version):
         self.sock = sock
         self.sock.setblocking(0)
         self.sockname = name
         self.name = name
+        self.version = version
         self.table: Table = table
         self.stopped = False
         self.fp = logfp
+        self.authed = False
         self.loglock = Lock()
         self.player = self.table.get_player(self.name)
 
@@ -192,6 +199,7 @@ class ServerThread(Netsock):
                 if etype == 'exit':
                     break
                 reply = self.handle_event(etype, edata)
+
                 if etype not in ("status", "menu_state"):
                     self.log(f"Event: {etype}, edata: {edata}, response: {reply}")
 
@@ -212,8 +220,12 @@ class ServerThread(Netsock):
         match event:
             case "time":
                 return datetime.now().strftime("%H:%M:%S")
-            case "set_name":
-                name = str(edata)
+            case "auth":
+                name, version = edata
+                if version != self.version:
+                    return f'Version mismatch. Server: {self.version}, client: {version}'
+
+                name = str(name)
                 if len(name) > 24:
                     name = name[:24]
 
@@ -227,7 +239,11 @@ class ServerThread(Netsock):
                     else:
                         name += '-'
                 self.player.name = self.name = name
+                self.authed = True
             case "ready":
+                if not self.authed:
+                    return False
+
                 if edata is None:
                     edata = not self.player.ready
                 self.player.ready = edata
@@ -300,12 +316,13 @@ class ServerThread(Netsock):
             print(prefix, *args, **kwargs, file=fp, flush=True)
 
 class Server(Netsock):
-    def __init__(self, settings=None):
+    def __init__(self, version, settings=None):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.address = socket.gethostbyname(socket.gethostname())
         self.threads = []
         self.stopped = False
         self.settings = settings
+        self.version = version
         self.table = Table()
         self.loglock = Lock()
         self.fp = Path(__file__).parent / "server.log"
@@ -329,7 +346,7 @@ class Server(Netsock):
             while self.table.get_player(uname):
                 uname += '-'
             self.table.add_player(uname)
-            server_thread = ServerThread(user_sock, self.table, uname, self.fp)
+            server_thread = ServerThread(user_sock, self.table, uname, self.fp, self.version)
             server_thread.start()
             self.threads.append(server_thread)
         self.sock.close()
