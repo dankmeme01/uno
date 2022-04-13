@@ -146,6 +146,7 @@ class Table:
         self.placedeck = [topcard]
 
         for player in self.players:
+            player.ready = False
             for _ in range(0, CARD_AMOUNT):
                 player.deck.append(self.deck.pop())
                 self.check_cards()

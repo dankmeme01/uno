@@ -6,7 +6,7 @@ from icecream import ic
 import pygame
 import socket
 
-__version__ = "1.5-pre3"
+__version__ = "1.5-pre4"
 # issues i found:
 # ? if you have too many cards, it overlaps the draw btn
 # ? drawing a wild card from +2 or +4 auto assigns it to blue??
@@ -143,7 +143,7 @@ def waitroomtick():
             screen.blit(text.surface, text.surface.get_rect(center=(x, y)))
 
     if cl.lastwinner is not None:
-        txt = Text(32, "Winner: " + cl.lastwinner, None, (255, 255, 255))
+        txt = Text(32, "Last winner: " + cl.lastwinner, None, (255, 255, 0))
         screen.blit(txt.surface, txt.surface.get_rect(center=(500, 70)))
 
     update_objects(readybtn, infomsg, readystatus, hostlbl, totalplbl, iplbl if not shown_addr else addrlbl)
