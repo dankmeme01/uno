@@ -65,7 +65,8 @@ class Client(Netsock):
             try:
                 self.sock.send(json.dumps([etype, edata]).encode())
                 return json.loads(self.sock.recv(4096).decode())
-            except (ConnectionResetError, ConnectionAbortedError):
+            except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
+                print(e)
                 self.stop()
 
 

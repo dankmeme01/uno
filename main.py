@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.6-pre2"
+__version__ = "1.6-pre3"
 # one issue left:
 # +4 sometimes gives 12 cards (lmao)
 
@@ -90,6 +90,7 @@ name_entry = Entry(200, 50, 500, 300, maxchars=24, bgcolor=(127, 127, 127), fgco
 set_name = Button(None, None, 500, 360, lambda: set_my_name(name_entry.get()), Text(36, "Set name", (127, 127, 127), (255, 255, 255)))
 default_name = Button(None, None, 500, 440, lambda: set_my_name(socket.gethostname()), Text(36, "Set default name", (127, 127, 127), (255, 255, 255)))
 close_settings = Button(None, None, 40, 575, lambda: set_state('menu'), Text(24, "Back", (127, 127, 127), (255, 255, 255)))
+version_lbl = Label(None, None, 500, 575, Text(24, "Version: " + __version__, None, (255, 255, 255)))
 
 def stop_game():
     global game_on, global_client, global_server
@@ -207,11 +208,27 @@ def gametick():
             if len(playersfixed) % 2 == 0:
                 px += namewidth
 
-            name = Text(24, p.name, None, (255, 255, 255) if p.index != cl.moving else (0, 255, 0))
+            match len(playersfixed):
+                case 1 | 2 | 3:
+                    fontsize = 24
+                case 4:
+                    fontsize = 20
+                case 5:
+                    fontsize = 18
+                case 6:
+                    fontsize = 16
+                case 7:
+                    fontsize = 14
+                case 8:
+                    fontsize = 12
+                case _:
+                    fontsize = 8
+
+            name = Text(fontsize, p.name, None, (255, 255, 255) if p.index != cl.moving else (0, 255, 0))
             screen.blit(name.surface, name.surface.get_rect(center=(px, py)))
             # draw their card amount
 
-            card = Text(24, f"{p.cards} cards", None, (255, 255, 255))
+            card = Text(fontsize, f"{p.cards} cards", None, (255, 255, 255))
             screen.blit(card.surface, card.surface.get_rect(center=(px, py + 30)))
             thisone += 1
 
@@ -331,7 +348,7 @@ def settingstick():
         pass_event(event, name_entry, set_name, default_name, close_settings)
 
     curname.set_display(Text(32, "Current name: %s" % settings.get('name'), None, (255, 255, 255)))
-    update_objects(curname, name_entry, set_name, default_name, close_settings)
+    update_objects(curname, name_entry, set_name, default_name, close_settings, version_lbl)
 
 print("Starting up UNO version", __version__)
 while game_on:
