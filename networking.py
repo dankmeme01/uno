@@ -72,7 +72,12 @@ class Client(Netsock):
         with self.sendlock:
             try:
                 self.sock.send(json.dumps([etype, edata]).encode())
-                return json.loads(self.sock.recv(4096).decode())
+                data = self.sock.recv(4096).decode()
+                if not data:
+                    self.log("Server closed connection.")
+                    self.stop()
+
+                return json.loads()
             except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
                 print(e)
                 self.stop()
