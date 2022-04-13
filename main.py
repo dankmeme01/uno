@@ -5,8 +5,8 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.6-pre3"
-# one issue left:
+__version__ = "1.6-pre4"
+# i don't know if this bug still exists, but i wont remove this yet
 # +4 sometimes gives 12 cards (lmao)
 
 SCREENSIZE = (1000, 600)
@@ -329,11 +329,47 @@ def gametick():
             elif not cl.waiting_color and cl.moving == cl.myindex:
                 pass_event(event, drawbtn)
 
-    
+    def draw_clockwise():
+        # draw the base lines for arrow
+        pygame.draw.lines(screen, (255, 0, 25), False,
+            ((SCREENSIZE[0] / 2 - 20, SCREENSIZE[1] / 2 - 65), # above the card
+             (SCREENSIZE[0] / 2 - 55, SCREENSIZE[1] / 2 - 65), # left top of the card
+             (SCREENSIZE[0] / 2 - 55, SCREENSIZE[1] / 2 + 65), # left bottom of the card
+             (SCREENSIZE[0] / 2 - 20, SCREENSIZE[1] / 2 + 65)) # below the card
+        , 4)
+
+        # now the right side
+        pygame.draw.lines(screen, (255, 0, 25), False,
+            ((SCREENSIZE[0] / 2 + 20, SCREENSIZE[1] / 2 - 65), # above the card
+             (SCREENSIZE[0] / 2 + 55, SCREENSIZE[1] / 2 - 65), # right top of the card
+             (SCREENSIZE[0] / 2 + 55, SCREENSIZE[1] / 2 + 65), # right bottom of the card
+             (SCREENSIZE[0] / 2 + 20, SCREENSIZE[1] / 2 + 65)) # below the card
+        , 4)
+
+        if cl.clockwise:
+            # draw the arrow on the left
+            pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 - 20, SCREENSIZE[1] / 2 - 65), (SCREENSIZE[0] / 2 - 30, SCREENSIZE[1] / 2 - 75), 4)
+            pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 - 20, SCREENSIZE[1] / 2 - 65), (SCREENSIZE[0] / 2 - 30, SCREENSIZE[1] / 2 - 55), 4)
+            # draw the arrow on the right
+            pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 + 20, SCREENSIZE[1] / 2 + 65), (SCREENSIZE[0] / 2 + 30, SCREENSIZE[1] / 2 + 75), 4)
+            pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 + 20, SCREENSIZE[1] / 2 + 65), (SCREENSIZE[0] / 2 + 30, SCREENSIZE[1] / 2 + 55), 4)
+        else:
+            # draw the arrow on the left
+            pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 - 20, SCREENSIZE[1] / 2 + 65), (SCREENSIZE[0] / 2 - 30, SCREENSIZE[1] / 2 + 75), 4)
+            pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 - 20, SCREENSIZE[1] / 2 + 65), (SCREENSIZE[0] / 2 - 30, SCREENSIZE[1] / 2 + 55), 4)
+            # draw the arrow on the right
+            pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 + 20, SCREENSIZE[1] / 2 - 65), (SCREENSIZE[0] / 2 + 30, SCREENSIZE[1] / 2 - 75), 4)
+            pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 + 20, SCREENSIZE[1] / 2 - 65), (SCREENSIZE[0] / 2 + 30, SCREENSIZE[1] / 2 - 55), 4)
+
+
     draw_players()
     draw_deck()
     draw_topcard_indicators()
     draw_drawbtn()
+
+    # we don't need the arrows if there are 2 people.
+    if len(cl.players) > 2:
+        draw_clockwise()
 
     update_draw_check_mousebtn()
 
