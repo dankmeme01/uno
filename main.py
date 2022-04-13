@@ -6,10 +6,10 @@ from icecream import ic
 import pygame
 import socket
 
-__version__ = "1.5-pre2"
+__version__ = "1.5-pre3"
 # issues i found:
 # ? if you have too many cards, it overlaps the draw btn
-# drawing a wild card from +2 or +4 auto assigns it to blue??
+# ? drawing a wild card from +2 or +4 auto assigns it to blue??
 # ? +4 sometimes gives 12 cards (lmao)
 # ? black screen and hung after game end
 # ? immediate color choose after using a drawn +4 or color

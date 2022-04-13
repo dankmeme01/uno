@@ -129,6 +129,9 @@ class Table:
         if len(self.deck) == 0:
             self.deck = self.placedeck.copy()
             random.shuffle(self.deck)
+            for n, card in enumerate(self.deck):
+                if card.type in ('color', '+4'):
+                    self.deck[n] = Card('wild', card.type)
             self.placedeck.clear()
             self.placedeck.append(self.topcard)
 
