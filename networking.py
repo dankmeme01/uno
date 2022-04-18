@@ -73,7 +73,7 @@ class Client(Netsock):
             try:
                 self.sock.send(json.dumps([etype, edata]).encode())
                 data = self.sock.recv(4096).decode()
-                if not data:
+                if not data or not data.strip():
                     self.log("Server closed connection.")
                     self.stop()
 

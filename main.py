@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.6.6"
+__version__ = "1.6.7"
 # wishlist:
 # add server list to not retype addresses all the time
 # animations
@@ -325,17 +325,18 @@ def gametick():
             if event.type == QUIT:
                 return stop_game()
 
-            elif event.type == MOUSEBUTTONUP:
+            if cl.showdraw:
+                pass_event(event, draw_place, draw_take)
+            elif not cl.waiting_color and cl.moving == cl.myindex:
+                pass_event(event, drawbtn)
+
+            if event.type == MOUSEBUTTONUP:
                 if cl.moving == cl.myindex and not cl.waiting_color:
                     update_card_choice()
 
                 elif cl.moving == cl.myindex and not not cl.waiting_color:
                     update_color_choice()
             
-            if cl.showdraw:
-                pass_event(event, draw_place, draw_take)
-            elif not cl.waiting_color and cl.moving == cl.myindex:
-                pass_event(event, drawbtn)
 
     def draw_clockwise():
         # draw the base lines for arrow
