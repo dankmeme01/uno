@@ -82,7 +82,6 @@ class Table:
         self.clockwise = True
         # moving is index of player who is yet to place a card.
         self.moving = None
-        self.deck = cards.copy()
         self.started = False
         self.lastwinner = None
         random.shuffle(self.deck)
@@ -138,6 +137,7 @@ class Table:
     def start(self):
         topcard = random.choice(self.deck)
         self.deck.remove(topcard)
+        self.deck = cards.copy()
 
         if topcard.color == 'wild':
             topcard = Card(random.choice(colors), topcard.type)
