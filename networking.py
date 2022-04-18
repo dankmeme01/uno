@@ -77,7 +77,7 @@ class Client(Netsock):
                     self.log("Server closed connection.")
                     self.stop()
 
-                return json.loads()
+                return json.loads(data)
             except (ConnectionResetError, ConnectionAbortedError, OSError) as e:
                 print(e)
                 self.stop()

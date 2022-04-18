@@ -6,8 +6,6 @@ import pygame
 import socket
 
 __version__ = "1.6.2"
-# i don't know if this bug still exists, but i wont remove this yet
-# +4 sometimes gives 12 cards (lmao)
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
