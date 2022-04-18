@@ -127,6 +127,7 @@ class Table:
     def check_cards(self):
         if len(self.deck) == 0:
             self.deck = self.placedeck.copy()
+            self.deck.remove(self.topcard)
             random.shuffle(self.deck)
             for n, card in enumerate(self.deck):
                 if card.type in ('color', '+4'):
