@@ -5,11 +5,11 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.6.7"
+__version__ = "1.7.0"
 # wishlist:
-# add server list to not retype addresses all the time
+# ! add server list to not retype addresses all the time
 # animations
-# allow ctrl+v maybe?
+# ! allow ctrl+v maybe?
 
 
 SCREENSIZE = (1000, 600)
@@ -17,11 +17,7 @@ screen = pygame.display.set_mode(SCREENSIZE)
 clock = pygame.time.Clock()
 
 settingpath = Path(__file__).parent / '.settings'
-if settingpath.exists():
-    settings = Settings.load(settingpath)
-else:
-    settings = Settings(name=socket.gethostname())
-    settings.save(settingpath)
+settings = Settings(settingpath, name=socket.gethostname(), saveaddr=[])
 
 global_server = None
 global_client = None
@@ -36,6 +32,8 @@ def connect_to_game(addr):
         try:
             global_client = Client(addr, __version__, settings)
             global_client.start()
+            if not addr in settings.get('saveaddr'):
+                settings.run_on('saveaddr', 'append', addr)
         except Exception as e:
             global_client = None
             print(e)
@@ -55,12 +53,25 @@ def set_state(state2: str):
     global state
     state = state2
 
+def switch_ip():
+    global menuipindex
+    if not menuipindex:
+        menuipindex = len(settings.get('saveaddr'))
+
+    menuipindex -= 1
+    if menuipindex < 0:
+        menuipindex = 0
+
+    ipaddrentry.set(settings.get('saveaddr')[menuipindex])
+
 #menu
 hostbtn = Button(None, None, 500, 170, host_game, Text(48, "Host Game", (127, 127, 127), (255, 255, 255)))
 ipaddrentry = Entry(200, 50, 500, 300, maxchars=15, bgcolor=(127, 127, 127), fgcolor=(165, 165, 165), textcolor=(255, 255, 255), emptytext="IP Address", fontsize=24)
 clientbtn = Button(None, None, 500, 380, lambda: connect_to_game(ipaddrentry.get()), Text(48, "Connect", (127, 127, 127), (255, 255, 255)))
 lhostbtn = Button(None, None, 950, 575, lambda: ipaddrentry.set(socket.gethostbyname(socket.gethostname())), Text(24, "Localhost", (127, 127, 127), (255, 255, 255)))
 open_settings = Button(None, None, 50, 575, lambda: set_state('settings'), Text(24, "Settings", (127, 127, 127), (255, 255, 255)))
+recentip_btn = Button(None, None, 940, 25, switch_ip, Text(24, "Insert last IP", (127, 127, 127), (255, 255, 255)))
+menuipindex = None
 
 #waitroom
 readybtn = Button(None, None, 500, 500, lambda: global_client.ready(), Text(32, "Ready", (127, 127, 127), (255, 255, 255)))
@@ -111,7 +122,6 @@ def stop_game():
 
 def set_my_name(name: str):
     settings.set('name', name)
-    settings.save(settingpath)
 
 def pass_event(event, *objects):
     for obj in objects:
@@ -129,9 +139,9 @@ def menutick():
         if event.type == QUIT:
             return stop_game()
 
-        pass_event(event, hostbtn, ipaddrentry, clientbtn, lhostbtn, open_settings)
+        pass_event(event, hostbtn, ipaddrentry, clientbtn, lhostbtn, open_settings, recentip_btn)
 
-    update_objects(hostbtn, ipaddrentry, clientbtn, lhostbtn, open_settings)
+    update_objects(hostbtn, ipaddrentry, clientbtn, lhostbtn, open_settings, recentip_btn)
 
     if global_client:
         state = 'wait'

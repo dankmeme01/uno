@@ -6,7 +6,6 @@ import json
 pygame.font.init()
 
 
-
 class PygameObject:
     def __init__(self, width, height, pos_x, pos_y, surface) -> None:
         self.size = (width, height)
@@ -108,6 +107,10 @@ class Entry(PygameObject):
         self.focused = False
         self.prevstate = (False, "")
         self.fontsize = fontsize
+
+        if not pygame.scrap.get_init():
+            pygame.scrap.init()
+
         super().__init__(width, height, pos_x, pos_y, None)
 
     def update(self):
@@ -148,6 +151,16 @@ class Entry(PygameObject):
                     self.focused = False
                 elif event.key == K_SPACE:
                     self.text += " "
+                elif pygame.key.get_mods() & KMOD_CTRL and event.key in (K_c, K_v, K_x):
+                    match event.key:
+                        case pygame.K_c:
+                            pygame.scrap.put(SCRAP_TEXT, self.text.encode())
+                        case pygame.K_v:
+                            self.text = pygame.scrap.get(SCRAP_TEXT).decode('utf-8').strip().strip('\x00')
+                        case pygame.K_x:
+                            pygame.scrap.put(SCRAP_TEXT, self.text.encode())
+                            self.text = ""
+
                 elif event.unicode and len(self.text) < self.maxchars:
                     self.text += event.unicode
 
@@ -186,29 +199,39 @@ class Spritesheet:
             raise FileNotFoundError("No spritesheet file found for " + self.fname)
 
 class Settings:
-    def __init__(self, **kwargs) -> None:
-        self.values = kwargs
+    def __init__(self, savepath, **defaults) -> None:
+        self.values = defaults
+        self.sp = Path(savepath)
+        if self.sp.exists():
+            self.load()
 
     def get(self, key):
         return self.values[key]
 
     def set(self, key, value, dont_save = False):
         self.values[key] = value
+        if not dont_save:
+            self.save()
 
-    @classmethod
-    def from_json(cls, string):
-        return cls(**json.loads(string))
+    def load(self):
+        with open(self.sp, 'r') as f:
+            values = json.loads(f.read())
+            for k,v in values.items():
+                self.values[k] = v
 
-    def to_json(self):
-        return json.dumps(self.values)
+    def save(self):
+        with open(self.sp, 'w') as f:
+            f.write(json.dumps(self.values))
 
-    @classmethod
-    def load(cls, path):
-        path = Path(path)
-        with open(path, 'r') as f:
-            return cls.from_json(f.read())
+    def run_on(self, key, function_name, *args, dont_save = False, **kwargs):
+        # Run a function on the value of a key
+        # This is useful for changing the value of a key without getting it first
+        # Example: run_on('list', 'append', 'a')
 
-    def save(self, path):
-        path = Path(path)
-        with open(path, 'w') as f:
-            f.write(self.to_json())
+        # Get the value
+        value = self.values[key]
+        func = getattr(value, function_name)
+        res = func(*args, **kwargs)
+        if not dont_save:
+            self.save()
+        return res
