@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.6.5"
+__version__ = "1.6.6"
 # wishlist:
 # add server list to not retype addresses all the time
 # animations

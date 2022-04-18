@@ -85,7 +85,6 @@ class Table:
         self.moving = None
         self.started = False
         self.lastwinner = None
-        random.shuffle(self.deck)
 
     def add_player(self, playername):
         if self.started:
@@ -140,6 +139,7 @@ class Table:
         self.deck = cards.copy()
         topcard = random.choice(self.deck)
         self.deck.remove(topcard)
+        random.shuffle(self.deck)
 
         if topcard.color == 'wild':
             topcard = Card(random.choice(colors), topcard.type)
