@@ -5,7 +5,12 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.6.4"
+__version__ = "1.6.5"
+# wishlist:
+# add server list to not retype addresses all the time
+# animations
+# allow ctrl+v maybe?
+
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)

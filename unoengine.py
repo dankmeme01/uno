@@ -80,6 +80,7 @@ class Table:
     def __init__(self):
         self.players: list[Player] = []
         self.clockwise = True
+        self.deck = []
         # moving is index of player who is yet to place a card.
         self.moving = None
         self.started = False
@@ -136,9 +137,9 @@ class Table:
             self.placedeck.append(self.topcard)
 
     def start(self):
+        self.deck = cards.copy()
         topcard = random.choice(self.deck)
         self.deck.remove(topcard)
-        self.deck = cards.copy()
 
         if topcard.color == 'wild':
             topcard = Card(random.choice(colors), topcard.type)
