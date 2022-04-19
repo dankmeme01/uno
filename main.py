@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8.0"
+__version__ = "1.8.1"
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
@@ -97,6 +97,9 @@ card_back = pygame.transform.scale(card_back, (50, 282 * (50 / 188)))
 topcard_cache = None
 topcard_saved = None
 topcard_cachetimer = None
+deck_cachelen = None
+deck_cachesaved = None
+deck_cachetimer = None
 anim_state = {}
 animbuffer = []
 drewncards = []
@@ -252,18 +255,43 @@ def gametick():
             thisone += 1
 
     def draw_deck():
+        global deck_cachesaved, deck_cachelen, deck_cachetimer
         drewncards.clear()
-        for n, c in enumerate(cl.deck):
+        if deck_cachelen is None:
+            deck_cachelen = len(cl.deck)
+            deck_cachesaved = len(cl.deck)
+
+        elif len(cl.deck) > deck_cachelen:
+            cardmod = 5 * (len(cl.deck) - deck_cachelen - 1)
+            if deck_cachesaved and len(cl.deck) != deck_cachesaved:
+                deck_cachesaved = len(cl.deck)
+                deck_cachetimer = 25 + cardmod
+
+            elif deck_cachetimer == None:
+                deck_cachesaved = len(cl.deck)
+                deck_cachetimer = 25 + cardmod
+
+            deck_cachetimer -= 1
+            if deck_cachetimer == 0:
+                deck_cachelen = deck_cachesaved
+                deck_cachetimer = None
+            elif deck_cachetimer <= cardmod and deck_cachetimer % 5 == 0:
+                deck_cachelen += 1
+
+        diff = deck_cachesaved - deck_cachelen
+        animcardlist = cl.deck[:-diff] if diff > 0 else cl.deck
+
+        for n, c in enumerate(animcardlist):
             card = cardsheet.get_sprite(card_to_id(c))
-            midindex = len(cl.deck) // 2
+            midindex = len(animcardlist) // 2
             cardwidth = card.get_rect().width
 
-            if len(cl.deck) > 1:
-                diff = ((SCREENSIZE[0] - 2*cardwidth) / (len(cl.deck) - 1))
+            if len(animcardlist) > 1:
+                diff = ((SCREENSIZE[0] - 2*cardwidth) / (len(animcardlist) - 1))
                 if diff > cardwidth:
                     diff = cardwidth
                 x = SCREENSIZE[0] / 2 + (n - midindex) * diff
-                if len(cl.deck) % 2 == 0:
+                if len(animcardlist) % 2 == 0:
                     x += cardwidth / 2
             else:
                 x = SCREENSIZE[0] / 2
@@ -518,6 +546,9 @@ def settingstick():
     update_objects(curname, name_entry, set_name, default_name, close_settings, version_lbl)
 
 print("Starting up UNO version", __version__)
+logdir = Path(__file__).parent / 'logs'
+logdir.mkdir(exist_ok=True, parents=True)
+
 while game_on:
     try:
         screen.fill((0, 0, 0))
