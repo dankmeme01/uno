@@ -42,7 +42,7 @@ class Client(Netsock):
         if self.settings:
             self.name = self.settings.get('name')
 
-        self.fp = Path(__file__).parent / "client.log"
+        self.fp = Path(__file__).parent / "logs" / f"client-{time.time_ns()}.log"
         open(self.fp, 'w').close()
         self.sock.connect((address, PORT))
         self.log(f"Connected to {address}:{PORT}")
@@ -337,7 +337,7 @@ class Server(Netsock):
         self.version = version
         self.table = Table()
         self.loglock = Lock()
-        self.fp = Path(__file__).parent / "server.log"
+        self.fp = Path(__file__).parent / "logs" / f"server-{time.time_ns()}.log"
         open(self.fp, 'w').close()
         self.sock.bind((self.address, PORT))
         self.sock.listen()
