@@ -262,7 +262,7 @@ def gametick():
             deck_cachesaved = len(cl.deck)
 
         elif len(cl.deck) > deck_cachelen:
-            cardmod = 5 * (len(cl.deck) - deck_cachelen - 1)
+            cardmod = 3 * (len(cl.deck) - deck_cachelen - 1)
             if deck_cachesaved and len(cl.deck) != deck_cachesaved:
                 deck_cachesaved = len(cl.deck)
                 deck_cachetimer = 25 + cardmod
@@ -275,7 +275,7 @@ def gametick():
             if deck_cachetimer == 0:
                 deck_cachelen = deck_cachesaved
                 deck_cachetimer = None
-            elif deck_cachetimer <= cardmod and deck_cachetimer % 5 == 0:
+            elif deck_cachetimer <= cardmod and deck_cachetimer % 3 == 0:
                 deck_cachelen += 1
 
         diff = deck_cachesaved - deck_cachelen
