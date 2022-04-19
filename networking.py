@@ -190,6 +190,7 @@ class ServerThread(Netsock):
         self.stopped = False
         self.fp = logfp
         self.authed = False
+        self.bot = False
         self.loglock = Lock()
         self.player = self.table.get_player(self.name)
 
@@ -232,7 +233,11 @@ class ServerThread(Netsock):
             return datetime.now().strftime("%H:%M:%S")
         elif event == "auth":
             name, version = edata
-            if version != self.version:
+
+            if version == 'bot':
+                self.bot = True
+                self.log("Warning: Player registered as bot.")
+            elif version != self.version:
                 return f'Version mismatch. Server: {self.version}, client: {version}'
 
             name = str(name)

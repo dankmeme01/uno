@@ -3,4 +3,6 @@ __pycache__
 cards.psd
 sheet_tools/out
 .settings
+.bot_settings
 logs/
+bot_logs/

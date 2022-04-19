@@ -510,7 +510,6 @@ def gametick():
         print("Connection to the server has been ended. If this is shouldn't have happened, check the 'client.log' file for the error.")
         return stop_game()
 
-
     if not anim_state:
         draw_players()
         anim_state = collect_anim_state()
@@ -522,7 +521,6 @@ def gametick():
     draw_players()
     draw_deck()
 
-
     draw_drawbtn()
 
     # we don't need the arrows if there are 2 people.
@@ -530,7 +528,6 @@ def gametick():
         draw_clockwise()
 
     update_draw_check_mousebtn()
-
 
 def settingstick():
     for event in pygame.event.get():
