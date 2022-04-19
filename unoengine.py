@@ -218,7 +218,6 @@ class Table:
                 break
 
     def draw(self, player: Player) -> Card:
-        return id_to_card('wild_+4')
         self.check_cards()
         card = self.deck.pop()
         if not self.can_place(card):

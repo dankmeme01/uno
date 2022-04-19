@@ -5,10 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8-pre5"
-# animations work !!!
-# now just finish animations when someone takes +2 or +4
-
+__version__ = "1.8-pre6"
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
