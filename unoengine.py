@@ -6,7 +6,7 @@
 # it will have info about all players
 # i will copy it from my previous uno
 # and change a bit
-# one moment please  щл 
+# one moment please  щл
 
 from collections import namedtuple
 import random
@@ -57,7 +57,7 @@ class Player:
 
     def getname(self):
         return self.name
-    
+
     def hascard(self, search):
         for card in self.deck:
             if card.color == search.color \
@@ -74,7 +74,7 @@ class Player:
             if (card.color == search.color or search.type in ('+4', 'color')) and card.type == search.type:
                 self.deck.pop(n)
                 return True
-        return False 
+        return False
 
 class Table:
     def __init__(self):
@@ -136,6 +136,7 @@ class Table:
             self.placedeck.append(self.topcard)
 
     def start(self):
+        self.clockwise = True
         self.deck = cards.copy()
         topcard = random.choice(self.deck)
         self.deck.remove(topcard)
@@ -169,7 +170,7 @@ class Table:
 
     def validate_move(self, player: Player, card):
         return self.can_place(card) and player.hascard(card)
-    
+
     def nextmoving(self):
         self.moving = self.moving + (1 if self.clockwise else -1)
         if self.moving >= len(self.players):
@@ -188,7 +189,7 @@ class Table:
             ccolor = card.color
 
         self.topcard = Card(ccolor, card.type)
-        
+
         nextplayer = self.moving + (1 if self.clockwise else -1)
         if nextplayer == len(self.players):
             nextplayer = 0

@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8-pre6"
+__version__ = "1.8.0"
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
@@ -42,7 +42,7 @@ def host_game():
         global_server.start()
         while not global_server.address:
             pass
-        connect_to_game(global_server.address) 
+        connect_to_game(global_server.address)
 
 def set_state(state2: str):
     global state
@@ -94,6 +94,9 @@ draw_take = Button(None, None, 870, 450, lambda: global_client.draw_take(), Text
 draw_place = Button(None, None, 960, 450, lambda: global_client.draw_place(), Text(30, "Place", (127, 127, 127), (255, 255, 255)))
 card_back = pygame.image.load(str(Path(__file__).parent / 'cardback.png'))
 card_back = pygame.transform.scale(card_back, (50, 282 * (50 / 188)))
+topcard_cache = None
+topcard_saved = None
+topcard_cachetimer = None
 anim_state = {}
 animbuffer = []
 drewncards = []
@@ -158,7 +161,7 @@ def waitroomtick():
     cl: Client = global_client
 
     if cl.stopped:
-        print("Connection to the server has been ended.")
+        print("Connection to the server has been ended. If this is shouldn't have happened, check the 'client.log' file for the error.")
         return stop_game()
 
     if not cl.in_menu:
@@ -220,7 +223,7 @@ def gametick():
             py = 50
             # draw their name
 
-            namewidth = SCREENSIZE[0] / 4        
+            namewidth = SCREENSIZE[0] / 4
             if len(playersfixed) % 2 == 0:
                 px += namewidth
 
@@ -271,12 +274,32 @@ def gametick():
             screen.blit(card, rect)
 
     def draw_topcard_indicators():
+        global topcard_cache, topcard_cachetimer, topcard_saved
+
+        # this is very weird but it works (?)
+        if not topcard_cache:
+            topcard_cache = cl.topcard
+
+        elif cl.topcard != topcard_cache:
+            if topcard_saved and cl.topcard != topcard_saved:
+                topcard_saved = cl.topcard
+                topcard_cachetimer = 30
+
+            elif topcard_cachetimer == None:
+                topcard_saved = cl.topcard
+                topcard_cachetimer = 30
+
+            topcard_cachetimer -= 1
+            if topcard_cachetimer == 0:
+                topcard_cache = topcard_saved
+                topcard_cachetimer = None
+
         # now draw the topcard
-        topcard = cardsheet.get_sprite(card_to_id(cl.topcard))
+        topcard = cardsheet.get_sprite(card_to_id(topcard_cache))
         if not topcard:
-            print("Card not found:", card_to_id(cl.topcard))
+            print("Card not found:", card_to_id(topcard_cache))
         screen.blit(topcard, topcard.get_rect(center=(SCREENSIZE[0] / 2, SCREENSIZE[1] / 2)))
-        
+
 
         # if we are moving, say that to the player
         if cl.moving == cl.myindex:
@@ -297,13 +320,13 @@ def gametick():
                 surf = pygame.Surface((45, 45))
                 surf.fill(color)
                 screen.blit(surf, surf.get_rect(center=(x, y)))
-    
+
     def draw_drawbtn():
         if cl.showdraw:
             update_objects(draw_take, draw_place)
         elif not cl.waiting_color and cl.moving == cl.myindex:
             update_objects(drawbtn)
-    
+
     def update_color_choice():
         colors = ("red","green","blue","yellow")
         crects = {}
@@ -311,7 +334,7 @@ def gametick():
             x = 890 if n % 2 == 1 else 940
             y = 400 + n // 2 * 50
             crects[color] = pygame.Surface((45, 45)).get_rect(center=(x, y))
-        
+
         for color, rect in crects.items():
             if rect.collidepoint(pygame.mouse.get_pos()):
                 cl.place_card(Card(color, cl.waiting_color.type))
@@ -435,7 +458,7 @@ def gametick():
             anim_state = newstate
 
         animbuffer = [[s,d,r,t,st,w] for (s,d,r,t,st,w) in animbuffer if t > 0]
-        
+
         for index, (source, dest, surface, tick, start_tick, wait_ticks) in enumerate(animbuffer):
             if wait_ticks > 0:
                 wait_ticks -= 1
@@ -447,19 +470,31 @@ def gametick():
             animbuffer[index] = (source, dest, surface, tick, start_tick, wait_ticks)
 
     if not cl.topcard:
-        if animbuffer:
+        if len(animbuffer) > 0:
             anim_tick()
+        elif topcard_cachetimer and topcard_cachetimer > 0:
+            pass
         else:
             state = "wait"
         return
 
     if cl.stopped:
-        print("Connection to the server has been ended.")
+        print("Connection to the server has been ended. If this is shouldn't have happened, check the 'client.log' file for the error.")
         return stop_game()
+
+
+    if not anim_state:
+        draw_players()
+        anim_state = collect_anim_state()
+
+    draw_topcard_indicators()
+
+    anim_tick()
 
     draw_players()
     draw_deck()
-    draw_topcard_indicators()
+
+
     draw_drawbtn()
 
     # we don't need the arrows if there are 2 people.
@@ -467,10 +502,7 @@ def gametick():
         draw_clockwise()
 
     update_draw_check_mousebtn()
-    if not anim_state:
-        anim_state = collect_anim_state()
-    
-    anim_tick()
+
 
 def settingstick():
     for event in pygame.event.get():
@@ -497,7 +529,7 @@ while game_on:
             settingstick()
         else:
             gametick()
-        
+
         clock.tick(60)
         pygame.display.flip()
     except KeyboardInterrupt:

@@ -114,7 +114,7 @@ class Client(Netsock):
         while True:
             if self.stopped:
                 break
-            
+
             if not self.auth:
                 self.auth = self.query_event("auth", [self.name, self.version])
                 if self.auth is not True:
@@ -156,7 +156,7 @@ class Client(Netsock):
                     self.init_values()
                     self.lastwinner = res[1]
                     continue
-                
+
                 if res != self.prevres:
                     self.log(f'Status change. Moving: {res[0]}, topcard: {res[2]}, deck: {res[1]}')
                     self.prevres = res
@@ -166,7 +166,7 @@ class Client(Netsock):
                 self.deck = [id_to_card(c) for c in self.deck]
                 self.topcard = id_to_card(self.topcard)
                 time.sleep(0.1)
-    
+
         self.sock.close()
 
     def stop(self):
@@ -177,8 +177,6 @@ class Client(Netsock):
     def log(self, *args, **kwargs):
         with self.loglock, open(self.fp, 'a') as fp:
             prefix = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [C]'
-            if DEBUG:
-                print(prefix, *args, **kwargs)
             print(prefix, *args, **kwargs, file=fp, flush=True)
 
 class ServerThread(Netsock):
@@ -219,7 +217,7 @@ class ServerThread(Netsock):
                 self.sock.send(json.dumps(reply).encode('utf-8'))
             except (ConnectionResetError, ConnectionAbortedError):
                 break
-    
+
         self.table.remove_player(self.name)
         self.stop()
 
@@ -321,7 +319,7 @@ class ServerThread(Netsock):
             self.table.nextmoving()
             return True
 
-    
+
     def log(self, *args, **kwargs):
         with self.loglock, open(self.fp, 'a') as fp:
             prefix = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [S-{self.name} ({self.sockname})]'
@@ -349,7 +347,7 @@ class Server(Netsock):
         while True:
             if self.stopped:
                 break
-            
+
             try:
                 user_sock, user_addr = self.sock.accept()
             except OSError:
@@ -357,7 +355,7 @@ class Server(Netsock):
 
             uname = socket.gethostbyaddr(user_sock.getpeername()[0])[0]
             self.log(f"Received connection from {uname} ({user_addr[0]}:{user_addr[1]})")
-            if self.table.started: 
+            if self.table.started:
                 user_sock.send(b"Game already started")
                 user_sock.close()
                 continue
@@ -374,7 +372,7 @@ class Server(Netsock):
         self.log("Stopping the main server..")
         self.sock.close()
         self.stopped = True
-    
+
     def log(self, *args, **kwargs):
         with self.loglock, open(self.fp, 'a') as fp:
             prefix = f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] [S]'

@@ -12,7 +12,7 @@ class PygameObject:
         self.pos = [pos_x, pos_y]
         if not surface:
             surface = pygame.Surface((width, height))
-        
+
         if width and height:
             self.surface = pygame.transform.scale(surface, self.size)
         else:
@@ -128,10 +128,10 @@ class Entry(PygameObject):
 
     def get(self):
         return self.text
-        
+
     def set(self, text):
         self.text = text
-    
+
     def on_event(self, event):
         if event.type == MOUSEBUTTONUP:
             point = pygame.mouse.get_pos()
