@@ -230,97 +230,96 @@ class ServerThread(Netsock):
 
     def handle_event(self, event, edata):
         # handles event
-        match event:
-            case "time":
-                return datetime.now().strftime("%H:%M:%S")
-            case "auth":
-                name, version = edata
-                if version != self.version:
-                    return f'Version mismatch. Server: {self.version}, client: {version}'
+        if event == "time":
+            return datetime.now().strftime("%H:%M:%S")
+        elif event == "auth":
+            name, version = edata
+            if version != self.version:
+                return f'Version mismatch. Server: {self.version}, client: {version}'
 
-                name = str(name)
-                if len(name) > 24:
+            name = str(name)
+            if len(name) > 24:
+                name = name[:24]
+
+            names = [p.name for p in self.table.players]
+            while name in names:
+                if name == '-'*24:
+                    name = f'Player-{random.randrange(1_000_000, 10_000_000)}'
+                if len(name) >= 24:
                     name = name[:24]
-
-                names = [p.name for p in self.table.players]
-                while name in names:
-                    if name == '-'*24:
-                        name = f'Player-{random.randrange(1_000_000, 10_000_000)}'
-                    if len(name) >= 24:
-                        name = name[:24]
-                        name = name[:-1] + '-'
-                    else:
-                        name += '-'
-                self.player.name = self.name = name
-                self.authed = True
-                return True
-            case "ready":
-                if not self.authed:
-                    return False
-
-                if edata is None:
-                    edata = not self.player.ready
-                self.player.ready = edata
-                if self.table.check_all_ready() and len(self.table.players) > 1:
-                    self.table.start()
-                return edata
-            case "menu_state":
-                if self.table.started:
-                    return False
-                return [(x.name, x.ready) for x in self.table.players]
-            case "begin_state":
-                if not self.table.started:
-                    return ("end", self.table.lastwinner if self.table.lastwinner else None)
-                return (self.table.indexof(self.name), [(x.name, n, len(x.deck)) for n,x in enumerate(self.table.players)])
-            case "status":
-                if not self.table.started:
-                    return ("end", self.table.lastwinner if self.table.lastwinner else None)
-
-                if len(self.table.players) < 2:
-                    self.table.started = False
-                    return ("end", self.table.lastwinner if self.table.lastwinner else None)
-
-                return (self.table.moving, [card_to_id(c) for c in self.player.deck], card_to_id(self.table.topcard), self.table.clockwise, [(x.name, n, len(x.deck)) for n,x in enumerate(self.table.players)])
-            case "move":
-                plcard = Card(*edata) if isinstance(edata, list) else id_to_card(edata)
-                if isinstance(self.player.waiting_action, Card):
-                    if self.player.waiting_action.type == plcard.type and self.player.waiting_action.color == 'wild':
-                        self.player.waiting_action = None
-                        self.table.place(self.player, plcard)
-                        return True
-
-                if self.table.indexof(self.name) != self.table.moving or self.player.waiting_action:
-                    return False
-
-                if not self.table.validate_move(self.player, plcard):
-                    return False
-                self.table.place(self.player, plcard)
-                return True
-            case "draw":
-                if self.table.indexof(self.name) != self.table.moving or self.player.waiting_action:
-                    return None
-
-                card = self.table.draw(self.player)
-                if isinstance(card, Card):
-                    self.player.waiting_action = card
-                    return card_to_id(card)
+                    name = name[:-1] + '-'
                 else:
-                    return None
-            case "draw_place":
-                if self.table.indexof(self.name) != self.table.moving or not self.player.waiting_action:
-                    return False
+                    name += '-'
+            self.player.name = self.name = name
+            self.authed = True
+            return True
+        elif event == "ready":
+            if not self.authed:
+                return False
 
-                self.table.place(self.player, self.player.waiting_action)
-                self.player.waiting_action = False
-                return True
-            case "draw_take":
-                if self.table.indexof(self.name) != self.table.moving or not self.player.waiting_action:
-                    return False
+            if edata is None:
+                edata = not self.player.ready
+            self.player.ready = edata
+            if self.table.check_all_ready() and len(self.table.players) > 1:
+                self.table.start()
+            return edata
+        elif event == "menu_state":
+            if self.table.started:
+                return False
+            return [(x.name, x.ready) for x in self.table.players]
+        elif event == "begin_state":
+            if not self.table.started:
+                return ("end", self.table.lastwinner if self.table.lastwinner else None)
+            return (self.table.indexof(self.name), [(x.name, n, len(x.deck)) for n,x in enumerate(self.table.players)])
+        elif event == "status":
+            if not self.table.started:
+                return ("end", self.table.lastwinner if self.table.lastwinner else None)
 
-                self.player.deck.append(self.player.waiting_action)
-                self.player.waiting_action = False
-                self.table.nextmoving()
-                return True
+            if len(self.table.players) < 2:
+                self.table.started = False
+                return ("end", self.table.lastwinner if self.table.lastwinner else None)
+
+            return (self.table.moving, [card_to_id(c) for c in self.player.deck], card_to_id(self.table.topcard), self.table.clockwise, [(x.name, n, len(x.deck)) for n,x in enumerate(self.table.players)])
+        elif event == "move":
+            plcard = Card(*edata) if isinstance(edata, list) else id_to_card(edata)
+            if isinstance(self.player.waiting_action, Card):
+                if self.player.waiting_action.type == plcard.type and self.player.waiting_action.color == 'wild':
+                    self.player.waiting_action = None
+                    self.table.place(self.player, plcard)
+                    return True
+
+            if self.table.indexof(self.name) != self.table.moving or self.player.waiting_action:
+                return False
+
+            if not self.table.validate_move(self.player, plcard):
+                return False
+            self.table.place(self.player, plcard)
+            return True
+        elif event == "draw":
+            if self.table.indexof(self.name) != self.table.moving or self.player.waiting_action:
+                return None
+
+            card = self.table.draw(self.player)
+            if isinstance(card, Card):
+                self.player.waiting_action = card
+                return card_to_id(card)
+            else:
+                return None
+        elif event == "draw_place":
+            if self.table.indexof(self.name) != self.table.moving or not self.player.waiting_action:
+                return False
+
+            self.table.place(self.player, self.player.waiting_action)
+            self.player.waiting_action = False
+            return True
+        elif event == "draw_take":
+            if self.table.indexof(self.name) != self.table.moving or not self.player.waiting_action:
+                return False
+
+            self.player.deck.append(self.player.waiting_action)
+            self.player.waiting_action = False
+            self.table.nextmoving()
+            return True
 
     
     def log(self, *args, **kwargs):

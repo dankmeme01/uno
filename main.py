@@ -1,11 +1,11 @@
 from pygame.locals import *
 from classes import *
-from networking import Client, Server
+from networking import Client, LocalPlayer, Server
 from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8-pre2"
+__version__ = "1.8-pre3"
 # animations work !!!
 # now just finish animations when someone takes +2 or +4
 
@@ -95,6 +95,7 @@ cardsheet = Spritesheet(str(Path(__file__).parent / 'cards.png'), 50)
 drawbtn = Button(None, None, 930, 465, lambda: global_client.draw(), Text(30, "Draw", (127, 127, 127), (255, 255, 255)))
 draw_take = Button(None, None, 870, 450, lambda: global_client.draw_take(), Text(30, "Take", (127, 127, 127), (255, 255, 255)))
 draw_place = Button(None, None, 960, 450, lambda: global_client.draw_place(), Text(30, "Place", (127, 127, 127), (255, 255, 255)))
+card_back = pygame.image.load(str(Path(__file__).parent / 'cardback.png'))
 anim_state = {}
 animbuffer = []
 drewncards = []
@@ -225,21 +226,20 @@ def gametick():
             if len(playersfixed) % 2 == 0:
                 px += namewidth
 
-            match len(playersfixed):
-                case 1 | 2 | 3:
-                    fontsize = 24
-                case 4:
-                    fontsize = 20
-                case 5:
-                    fontsize = 18
-                case 6:
-                    fontsize = 16
-                case 7:
-                    fontsize = 14
-                case 8:
-                    fontsize = 12
-                case _:
-                    fontsize = 8
+            if len(playersfixed) <= 3:
+                fontsize = 24
+            elif len(playersfixed) == 4:
+                fontsize = 20
+            elif len(playersfixed) == 5:
+                fontsize = 18
+            elif len(playersfixed) == 6:
+                fontsize = 16
+            elif len(playersfixed) == 7:
+                fontsize = 14
+            elif len(playersfixed) == 8:
+                fontsize = 12
+            else:
+                fontsize = 8
 
             name = Text(fontsize, p.name, None, (255, 255, 255) if p.index != cl.moving else (0, 255, 0))
             screen.blit(name.surface, name.surface.get_rect(center=(px, py)))
@@ -247,7 +247,7 @@ def gametick():
 
             card = Text(fontsize, f"{p.cards} cards", None, (255, 255, 255))
             screen.blit(card.surface, card.surface.get_rect(center=(px, py + 30)))
-            drewnplayers.append((name, p.index, px, py))
+            drewnplayers.append((name, p.index, p.cards, px, py))
             thisone += 1
 
     def draw_deck():
@@ -384,48 +384,71 @@ def gametick():
         return {
             'topcard': cl.topcard,
             'clockwise': cl.clockwise,
-            'moving': cl.moving
+            'moving': cl.moving,
+            'players': cl.players
         }
 
     def anim_tick():
         global anim_state, animbuffer
         newstate = collect_anim_state()
-        if newstate['moving'] != anim_state['moving'] or newstate['topcard'] != anim_state['topcard'] or newstate['clockwise'] != anim_state['clockwise']:
+        if newstate != anim_state:
+            cardcache = {}
+            # if a player took +2 or +4, display that
+            for old_p, new_p in zip(anim_state['players'], newstate['players']):
+                cardcache[old_p.index] = (old_p.cards, new_p.cards)
+                old_p: LocalPlayer
+                new_p: LocalPlayer
+
+                if old_p.cards < new_p.cards:
+                    amount = new_p.cards - old_p.cards
+                    if new_p.index == cl.myindex:
+                        px, py = (SCREENSIZE[0] / 2, SCREENSIZE[1] - 50)
+                    else:
+                        for name, index, cards, px, py in drewnplayers:
+                            if index == new_p.index:
+                                break
+                        else:
+                            raise ValueError('Player not found with index %s' % new_p.index)
+
+                    for i in range(amount):
+                        animbuffer.append([ tuple(drawbtn.pos), (px, py), card_back, 30, 30, 5 * i])
             # detect the change
             prev_moving = anim_state['moving']
             if prev_moving == cl.myindex:
-                if newstate['topcard'] != anim_state['topcard']:
+                old_cards, new_cards = cardcache[prev_moving]
+                if old_cards >= new_cards:
                     surf = cardsheet.get_sprite(card_to_id(newstate['topcard']))
-                    animbuffer.append([ (SCREENSIZE[0] / 2, SCREENSIZE[1] - 50 ), (SCREENSIZE[0] / 2, SCREENSIZE[1] / 2), surf, 30, 30 ])
+                    animbuffer.append([ (SCREENSIZE[0] / 2, SCREENSIZE[1] - 50 ), (SCREENSIZE[0] / 2, SCREENSIZE[1] / 2), surf, 30, 30, 0 ])
                 else:
                     # we drew the card
-                    surf = pygame.Surface((50, 50)) # XXX draw the back of the card
                     surf.fill((255, 0, 0))
-                    animbuffer.append([ tuple(drawbtn.pos), (SCREENSIZE[0] / 2, SCREENSIZE[1] - 50), surf, 30, 30 ])
+                    animbuffer.append([ tuple(drawbtn.pos), (SCREENSIZE[0] / 2, SCREENSIZE[1] - 50), card_back, 30, 30, 0 ])
             else:
-                for name, index, px, py in drewnplayers:
+                for name, index, cards, px, py in drewnplayers:
                     if index == prev_moving:
                         # if the topcard changed they placed it
                         if newstate['topcard'] != anim_state['topcard']:
                             # get topcard as surface, from the spritesheet
                             surf = cardsheet.get_sprite(card_to_id(newstate['topcard']))
-                            animbuffer.append([ (px, py), (SCREENSIZE[0] / 2, SCREENSIZE[1] / 2), surf, 30, 30 ])
+                            animbuffer.append([ (px, py), (SCREENSIZE[0] / 2, SCREENSIZE[1] / 2), surf, 30, 30, 0 ])
                         else:
                             # they drew the card
-                            surf = pygame.Surface((50, 50)) # XXX draw the card back
                             surf.fill((255, 0, 0))
-                            animbuffer.append([ tuple(drawbtn.pos), (px, py), surf, 30, 30 ])
+                            animbuffer.append([ tuple(drawbtn.pos), (px, py), card_back, 30, 30, 0 ])
 
             anim_state = newstate
 
-        animbuffer = [[s,d,r,t,st] for (s,d,r,t,st) in animbuffer if t > 0]
+        animbuffer = [[s,d,r,t,st,w] for (s,d,r,t,st,w) in animbuffer if t > 0]
         
-        for index, (source, dest, surface, tick, start_tick) in enumerate(animbuffer):
-            tick -= 1
-            diff = (dest[0] - source[0], dest[1] - source[1]) # also divide by the tick difference
-            pos = (diff[0] / start_tick * (start_tick - tick), diff[1] / start_tick * (start_tick - tick))
-            screen.blit(surface, surface.get_rect(center=(source[0] + pos[0], source[1] + pos[1])))
-            animbuffer[index] = (source, dest, surface, tick, start_tick)
+        for index, (source, dest, surface, tick, start_tick, wait_ticks) in enumerate(animbuffer):
+            if wait_ticks > 0:
+                wait_ticks -= 1
+            else:
+                tick -= 1
+                diff = (dest[0] - source[0], dest[1] - source[1]) # also divide by the tick difference
+                pos = (diff[0] / start_tick * (start_tick - tick), diff[1] / start_tick * (start_tick - tick))
+                screen.blit(surface, surface.get_rect(center=(source[0] + pos[0], source[1] + pos[1])))
+            animbuffer[index] = (source, dest, surface, tick, start_tick, wait_ticks)
 
     if not cl.topcard:
         if animbuffer:
