@@ -218,7 +218,7 @@ class Table:
                 break
 
     def draw(self, player: Player) -> Card:
-        # the problem is that when you roll a +4 it breaks the game instead of asking whether put it or not
+        return id_to_card('wild_+4')
         self.check_cards()
         card = self.deck.pop()
         if not self.can_place(card):

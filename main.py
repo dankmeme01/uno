@@ -5,11 +5,9 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.7.0"
-# wishlist:
-# ! add server list to not retype addresses all the time
-# animations
-# ! allow ctrl+v maybe?
+__version__ = "1.8-pre2"
+# animations work !!!
+# now just finish animations when someone takes +2 or +4
 
 
 SCREENSIZE = (1000, 600)
@@ -75,8 +73,9 @@ menuipindex = None
 
 #waitroom
 readybtn = Button(None, None, 500, 500, lambda: global_client.ready(), Text(32, "Ready", (127, 127, 127), (255, 255, 255)))
-infomsg = Label(None, None, 500, 110, Text(32, "Waiting for other players...", None, (255, 255, 255)))
+infomsg = Label(None, None, 500, 110, Text(32, "Connecting...", None, (255, 255, 255)))
 readystatus = Label(None, None, 500, 450, Text(32, "Not ready", None, (255, 0, 0)))
+set_other_waitroom_title = False
 
 def set_shownaddr():
     global shown_addr, iplbl, global_client
@@ -96,7 +95,10 @@ cardsheet = Spritesheet(str(Path(__file__).parent / 'cards.png'), 50)
 drawbtn = Button(None, None, 930, 465, lambda: global_client.draw(), Text(30, "Draw", (127, 127, 127), (255, 255, 255)))
 draw_take = Button(None, None, 870, 450, lambda: global_client.draw_take(), Text(30, "Take", (127, 127, 127), (255, 255, 255)))
 draw_place = Button(None, None, 960, 450, lambda: global_client.draw_place(), Text(30, "Place", (127, 127, 127), (255, 255, 255)))
+anim_state = {}
+animbuffer = []
 drewncards = []
+drewnplayers = []
 
 #settings
 curname = Label(None, None, 500, 100, Text(32, "Current name:", None, (255, 255, 255)))
@@ -147,7 +149,7 @@ def menutick():
         state = 'wait'
 
 def waitroomtick():
-    global game_on, global_client, localready, state
+    global game_on, global_client, localready, state, set_other_waitroom_title
     for event in pygame.event.get():
         if event.type == QUIT:
             return stop_game()
@@ -172,6 +174,9 @@ def waitroomtick():
         readystatus.set_display(Text(24, "Not ready", None, (255, 0, 0)))
 
     if cl.lobbypls:
+        if not set_other_waitroom_title:
+            set_other_waitroom_title = True
+            infomsg.set_display(Text(32, "Waiting for other players...", None, (255, 255, 255)))
         hostlbl.set_display(Text(28, "Host: " + cl.lobbypls[0][0], None, (255, 255, 255)))
         for n, (name, ready) in enumerate(cl.lobbypls):
             # display each of the names with a distance of 40 pixels vertically
@@ -187,17 +192,11 @@ def waitroomtick():
     update_objects(readybtn, infomsg, readystatus, hostlbl, totalplbl, iplbl if not shown_addr else addrlbl)
 
 def gametick():
-    global global_client, drewncards, state
+    global global_client, drewncards, state, anim_state, animbuffer, drewnplayers
     cl: Client = global_client
-    if not cl.topcard:
-        state = "wait"
-        return
-
-    if cl.stopped:
-        print("Connection to the server has been ended.")
-        return stop_game()
 
     def draw_players():
+        drewnplayers.clear()
         thisone = 0
         playersfixed = []
         more = []
@@ -248,6 +247,7 @@ def gametick():
 
             card = Text(fontsize, f"{p.cards} cards", None, (255, 255, 255))
             screen.blit(card.surface, card.surface.get_rect(center=(px, py + 30)))
+            drewnplayers.append((name, p.index, px, py))
             thisone += 1
 
     def draw_deck():
@@ -337,6 +337,7 @@ def gametick():
 
             if cl.showdraw:
                 pass_event(event, draw_place, draw_take)
+                return
             elif not cl.waiting_color and cl.moving == cl.myindex:
                 pass_event(event, drawbtn)
 
@@ -346,7 +347,6 @@ def gametick():
 
                 elif cl.moving == cl.myindex and not not cl.waiting_color:
                     update_color_choice()
-            
 
     def draw_clockwise():
         # draw the base lines for arrow
@@ -380,6 +380,63 @@ def gametick():
             pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 + 20, SCREENSIZE[1] / 2 - 65), (SCREENSIZE[0] / 2 + 30, SCREENSIZE[1] / 2 - 75), 4)
             pygame.draw.line(screen, (255, 0, 25), (SCREENSIZE[0] / 2 + 20, SCREENSIZE[1] / 2 - 65), (SCREENSIZE[0] / 2 + 30, SCREENSIZE[1] / 2 - 55), 4)
 
+    def collect_anim_state():
+        return {
+            'topcard': cl.topcard,
+            'clockwise': cl.clockwise,
+            'moving': cl.moving
+        }
+
+    def anim_tick():
+        global anim_state, animbuffer
+        newstate = collect_anim_state()
+        if newstate['moving'] != anim_state['moving'] or newstate['topcard'] != anim_state['topcard'] or newstate['clockwise'] != anim_state['clockwise']:
+            # detect the change
+            prev_moving = anim_state['moving']
+            if prev_moving == cl.myindex:
+                if newstate['topcard'] != anim_state['topcard']:
+                    surf = cardsheet.get_sprite(card_to_id(newstate['topcard']))
+                    animbuffer.append([ (SCREENSIZE[0] / 2, SCREENSIZE[1] - 50 ), (SCREENSIZE[0] / 2, SCREENSIZE[1] / 2), surf, 30, 30 ])
+                else:
+                    # we drew the card
+                    surf = pygame.Surface((50, 50)) # XXX draw the back of the card
+                    surf.fill((255, 0, 0))
+                    animbuffer.append([ tuple(drawbtn.pos), (SCREENSIZE[0] / 2, SCREENSIZE[1] - 50), surf, 30, 30 ])
+            else:
+                for name, index, px, py in drewnplayers:
+                    if index == prev_moving:
+                        # if the topcard changed they placed it
+                        if newstate['topcard'] != anim_state['topcard']:
+                            # get topcard as surface, from the spritesheet
+                            surf = cardsheet.get_sprite(card_to_id(newstate['topcard']))
+                            animbuffer.append([ (px, py), (SCREENSIZE[0] / 2, SCREENSIZE[1] / 2), surf, 30, 30 ])
+                        else:
+                            # they drew the card
+                            surf = pygame.Surface((50, 50)) # XXX draw the card back
+                            surf.fill((255, 0, 0))
+                            animbuffer.append([ tuple(drawbtn.pos), (px, py), surf, 30, 30 ])
+
+            anim_state = newstate
+
+        animbuffer = [[s,d,r,t,st] for (s,d,r,t,st) in animbuffer if t > 0]
+        
+        for index, (source, dest, surface, tick, start_tick) in enumerate(animbuffer):
+            tick -= 1
+            diff = (dest[0] - source[0], dest[1] - source[1]) # also divide by the tick difference
+            pos = (diff[0] / start_tick * (start_tick - tick), diff[1] / start_tick * (start_tick - tick))
+            screen.blit(surface, surface.get_rect(center=(source[0] + pos[0], source[1] + pos[1])))
+            animbuffer[index] = (source, dest, surface, tick, start_tick)
+
+    if not cl.topcard:
+        if animbuffer:
+            anim_tick()
+        else:
+            state = "wait"
+        return
+
+    if cl.stopped:
+        print("Connection to the server has been ended.")
+        return stop_game()
 
     draw_players()
     draw_deck()
@@ -391,6 +448,10 @@ def gametick():
         draw_clockwise()
 
     update_draw_check_mousebtn()
+    if not anim_state:
+        anim_state = collect_anim_state()
+    
+    anim_tick()
 
 def settingstick():
     for event in pygame.event.get():
