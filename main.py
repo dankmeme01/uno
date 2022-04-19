@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8-pre3"
+__version__ = "1.8-pre5"
 # animations work !!!
 # now just finish animations when someone takes +2 or +4
 
@@ -96,6 +96,7 @@ drawbtn = Button(None, None, 930, 465, lambda: global_client.draw(), Text(30, "D
 draw_take = Button(None, None, 870, 450, lambda: global_client.draw_take(), Text(30, "Take", (127, 127, 127), (255, 255, 255)))
 draw_place = Button(None, None, 960, 450, lambda: global_client.draw_place(), Text(30, "Place", (127, 127, 127), (255, 255, 255)))
 card_back = pygame.image.load(str(Path(__file__).parent / 'cardback.png'))
+card_back = pygame.transform.scale(card_back, (50, 282 * (50 / 188)))
 anim_state = {}
 animbuffer = []
 drewncards = []
@@ -411,7 +412,7 @@ def gametick():
                             raise ValueError('Player not found with index %s' % new_p.index)
 
                     for i in range(amount):
-                        animbuffer.append([ tuple(drawbtn.pos), (px, py), card_back, 30, 30, 5 * i])
+                        animbuffer.append([ tuple(drawbtn.pos), (px, py), card_back, 30, 30, 3 * i])
             # detect the change
             prev_moving = anim_state['moving']
             if prev_moving == cl.myindex:
@@ -421,7 +422,6 @@ def gametick():
                     animbuffer.append([ (SCREENSIZE[0] / 2, SCREENSIZE[1] - 50 ), (SCREENSIZE[0] / 2, SCREENSIZE[1] / 2), surf, 30, 30, 0 ])
                 else:
                     # we drew the card
-                    surf.fill((255, 0, 0))
                     animbuffer.append([ tuple(drawbtn.pos), (SCREENSIZE[0] / 2, SCREENSIZE[1] - 50), card_back, 30, 30, 0 ])
             else:
                 for name, index, cards, px, py in drewnplayers:
@@ -433,7 +433,6 @@ def gametick():
                             animbuffer.append([ (px, py), (SCREENSIZE[0] / 2, SCREENSIZE[1] / 2), surf, 30, 30, 0 ])
                         else:
                             # they drew the card
-                            surf.fill((255, 0, 0))
                             animbuffer.append([ tuple(drawbtn.pos), (px, py), card_back, 30, 30, 0 ])
 
             anim_state = newstate
