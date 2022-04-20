@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8.1"
+__version__ = "1.8.2-pre"
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
@@ -439,7 +439,25 @@ def gametick():
 
     def anim_tick():
         global anim_state, animbuffer
+        # tick the animations
+
+        animbuffer = [[s,d,r,t,st,w] for (s,d,r,t,st,w) in animbuffer if t > 0]
+
+        for index, (source, dest, surface, tick, start_tick, wait_ticks) in enumerate(animbuffer):
+            if wait_ticks > 0:
+                wait_ticks -= 1
+            else:
+                tick -= 1
+                diff = (dest[0] - source[0], dest[1] - source[1]) # also divide by the tick difference
+                pos = (diff[0] / start_tick * (start_tick - tick), diff[1] / start_tick * (start_tick - tick))
+                screen.blit(surface, surface.get_rect(center=(source[0] + pos[0], source[1] + pos[1])))
+            animbuffer[index] = (source, dest, surface, tick, start_tick, wait_ticks)
+
+
+        # possibly add new animations, if the game is over then dont.
         newstate = collect_anim_state()
+        if not newstate['topcard']:
+            return
         if newstate != anim_state:
             cardcache = {}
             # if a player took +2 or +4, display that
@@ -485,23 +503,12 @@ def gametick():
 
             anim_state = newstate
 
-        animbuffer = [[s,d,r,t,st,w] for (s,d,r,t,st,w) in animbuffer if t > 0]
-
-        for index, (source, dest, surface, tick, start_tick, wait_ticks) in enumerate(animbuffer):
-            if wait_ticks > 0:
-                wait_ticks -= 1
-            else:
-                tick -= 1
-                diff = (dest[0] - source[0], dest[1] - source[1]) # also divide by the tick difference
-                pos = (diff[0] / start_tick * (start_tick - tick), diff[1] / start_tick * (start_tick - tick))
-                screen.blit(surface, surface.get_rect(center=(source[0] + pos[0], source[1] + pos[1])))
-            animbuffer[index] = (source, dest, surface, tick, start_tick, wait_ticks)
 
     if not cl.topcard:
         if len(animbuffer) > 0:
             anim_tick()
         elif topcard_cachetimer and topcard_cachetimer > 0:
-            pass
+            topcard_cahetimer -= 1
         else:
             state = "wait"
         return
@@ -555,10 +562,14 @@ while game_on:
             waitroomtick()
         elif state == 'settings':
             settingstick()
-        else:
+        elif state == 'game':
             gametick()
+        else:
+            raise ValueError('Unknown state: %s' % state)
 
         clock.tick(60)
         pygame.display.flip()
     except KeyboardInterrupt:
+        import traceback
+        traceback.print_exc()
         stop_game()

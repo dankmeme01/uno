@@ -60,12 +60,7 @@ class Player:
 
     def hascard(self, search):
         for card in self.deck:
-            if card.color == search.color \
-            or card.type == search.type \
-            or card.color == 'wild' \
-            or search.color == 'wild' \
-            or card.type == 'color' \
-            or card.type == '+4':
+            if (card.color == search.color or card.color == 'wild' or search.color == 'wild') and card.type == search.type:
                 return True
         return False
 

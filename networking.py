@@ -30,7 +30,7 @@ class Netsock:
         raise NotImplementedError("Must inherit")
 
 class Client(Netsock):
-    def __init__(self, address, version, settings=None):
+    def __init__(self, address, version, settings=None, /, bot=False):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.serv_addr = address
         self.name = socket.gethostname()
@@ -42,7 +42,7 @@ class Client(Netsock):
         if self.settings:
             self.name = self.settings.get('name')
 
-        self.fp = Path(__file__).parent / "logs" / f"client-{time.time_ns()}.log"
+        self.fp = Path(__file__).parent / ("logs" if not bot else "bot_logs") / f"client-{time.time_ns()}.log"
         open(self.fp, 'w').close()
         self.sock.connect((address, PORT))
         self.log(f"Connected to {address}:{PORT}")
@@ -253,6 +253,7 @@ class ServerThread(Netsock):
                     name = name[:-1] + '-'
                 else:
                     name += '-'
+
             self.player.name = self.name = name
             self.authed = True
             return True
@@ -285,6 +286,7 @@ class ServerThread(Netsock):
             return (self.table.moving, [card_to_id(c) for c in self.player.deck], card_to_id(self.table.topcard), self.table.clockwise, [(x.name, n, len(x.deck)) for n,x in enumerate(self.table.players)])
         elif event == "move":
             plcard = Card(*edata) if isinstance(edata, list) else id_to_card(edata)
+            ic(plcard, self.player.waiting_action)
             if isinstance(self.player.waiting_action, Card):
                 if self.player.waiting_action.type == plcard.type and self.player.waiting_action.color == 'wild':
                     self.player.waiting_action = None
@@ -296,6 +298,7 @@ class ServerThread(Netsock):
 
             if not self.table.validate_move(self.player, plcard):
                 return False
+
             self.table.place(self.player, plcard)
             return True
         elif event == "draw":
