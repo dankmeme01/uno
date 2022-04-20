@@ -115,6 +115,7 @@ def gametick():
     sys.stdout.flush()
 
     if client.moving == client.myindex:
+        time.sleep(0.65)
         ai_action()
 
 def ai_action():

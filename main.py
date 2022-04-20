@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8.2-pre"
+__version__ = "1.8.2-pre2"
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
@@ -508,7 +508,7 @@ def gametick():
         if len(animbuffer) > 0:
             anim_tick()
         elif topcard_cachetimer and topcard_cachetimer > 0:
-            topcard_cahetimer -= 1
+            topcard_cachetimer -= 1
         else:
             state = "wait"
         return
