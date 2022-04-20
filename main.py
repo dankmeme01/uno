@@ -22,6 +22,7 @@ game_on = True
 state = 'menu'
 
 def connect_to_game(addr):
+    """Creates a global client instance and connects to the given address."""
     global global_client, ipaddrentry
     if not global_client:
         try:
@@ -36,6 +37,7 @@ def connect_to_game(addr):
 
 
 def host_game():
+    """Creates a global server instance and starts the lobby."""
     global global_server
     if not global_server:
         global_server = Server(__version__, settings)
