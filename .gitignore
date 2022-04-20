@@ -1,8 +1,8 @@
 __pycache__
 *.log
-cards.psd
-sheet_tools/out
 .settings
 .bot_settings
+
+sheet_tools/out
 logs/
 bot_logs/
