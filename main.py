@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8.2-pre2"
+__version__ = "1.8.2-pre3"
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
@@ -197,7 +197,7 @@ def waitroomtick():
     update_objects(readybtn, infomsg, readystatus, hostlbl, totalplbl, iplbl if not shown_addr else addrlbl)
 
 def gametick():
-    global global_client, drewncards, state, anim_state, animbuffer, drewnplayers
+    global global_client, drewncards, state, anim_state, animbuffer, drewnplayers, topcard_cachetimer
     cl: Client = global_client
 
     def draw_players():
