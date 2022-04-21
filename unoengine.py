@@ -93,7 +93,7 @@ class Table:
 
     def remove_player(self, playername):
         """Removes the player with the given name."""
-        player = self.getplayer(playername)
+        player = self.get_player(playername)
         pindex = self.players.index(player)
         cachemoving = False
         if self.moving == pindex:
@@ -169,7 +169,7 @@ class Table:
 
     def can_place(self, card):
         """Checks if the card can be placed on the table."""
-        return (card.color == self.topcard.color or card.color == 'wild' or self.topcard.color == 'wild') and card.type == self.topcard.type
+        return (card.color == self.topcard.color or card.type in ('color', '+4') or self.topcard.color == 'wild') or card.type == self.topcard.type
 
     def validate_move(self, player: Player, card):
         """Checks if the player can place the card."""

@@ -1,11 +1,10 @@
 # This script is not recommended to use in actual games (because it's cheating duh)
 # Originally created only for testing. The server knows if you're a bot or not. You can obviously change it but you will be an asshole then.
 
-from networking import Client, LocalPlayer, Server
-from unoengine import card_to_id, id_to_card, Card, Table
+from networking import Client, LocalPlayer
+from unoengine import Card
 from pathlib import Path
 from colored import bg, fg, attr
-from icecream import ic
 import random
 import time
 import json

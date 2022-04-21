@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8.2-pre3"
+__version__ = "1.8.3"
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
