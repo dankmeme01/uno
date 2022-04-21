@@ -5,8 +5,8 @@ import json
 
 pygame.font.init()
 
-
 class PygameObject:
+    """Base class for all objects in the game (button, label, etc)"""
     def __init__(self, width, height, pos_x, pos_y, surface) -> None:
         self.size = (width, height)
         self.pos = [pos_x, pos_y]
@@ -26,20 +26,23 @@ class PygameObject:
         self.rect = self.surface.get_rect(center=tuple(self.pos))
 
     def on_event(self, event):
+        """Called whan an event occurs. Should be overridden by subclasses"""
         pass
 
     def update(self):
         self.update_rect()
 
     def draw(self, surface):
+        """Draws the object on the given surface"""
         surface.blit(self.surface, self.rect)
 
 class Display:
+    """A class made simply for storing a surface of some data, such as text or image. Not to be confused with label, which is an actual pygame object."""
     def __init__(self, surface) -> None:
         self.surface = surface
 
-
 class Text(Display):
+    """A subclass of Display, which can easily make text objects without a need for manually rendering it."""
     cached_fonts = {}
     @staticmethod
     def get_font(fontsize):
@@ -56,21 +59,23 @@ class Text(Display):
         text = self.font.render(text, True, fgcolor, bgcolor)
         super().__init__(text)
 
-
 class Image(Display):
+    """A subclass of Display, which can easily make image objects without a need for manually loading and rendering it."""
     def __init__(self, image_path) -> None:
         surface = pygame.image.load(image_path)
         super().__init__(surface)
 
-
 class Label(PygameObject):
+    """Simple class to draw a Display object (such as Text or Image)"""
     def __init__(self, width, height, pos_x, pos_y, data: Display) -> None:
         super().__init__(width, height, pos_x, pos_y, data.surface)
 
     def set_display(self, data: Display):
+        """Sets the display to be drawn on the label"""
         self.surface = data.surface
 
 class Button(PygameObject):
+    """A class similar to label, but also includes a function to be called when the button is pressed"""
     def __init__(self, width, height, pos_x, pos_y, on_press, label: Display):
         self.label = label
         self.pressfunc = on_press
@@ -95,8 +100,8 @@ class Button(PygameObject):
             if self.rect.collidepoint(point):
                 self.pressfunc()
 
-
 class Entry(PygameObject):
+    """A simple text entry, with QoL settings such as maxchars and emptytext."""
     def __init__(self, width, height, pos_x, pos_y, /, maxchars: int, bgcolor, fgcolor, textcolor, fontsize: int, emptytext: str) -> None:
         self.maxchars = maxchars
         self.bgcolor = bgcolor
@@ -127,9 +132,11 @@ class Entry(PygameObject):
         super().update()
 
     def get(self):
+        """Returns the text in the entry"""
         return self.text
 
     def set(self, text):
+        """Sets the text in the entry"""
         self.text = text
 
     def on_event(self, event):
@@ -164,8 +171,8 @@ class Entry(PygameObject):
                 elif event.unicode and len(self.text) < self.maxchars:
                     self.text += event.unicode
 
-
 class Spritesheet:
+    """A spritesheet is a collection of images that can be easily loaded and used."""
     def __init__(self, filename: str, width: int = None) -> None:
         self.sheet = pygame.image.load(filename)
         self.fname = filename
@@ -199,6 +206,7 @@ class Spritesheet:
             raise FileNotFoundError("No spritesheet file found for " + self.fname)
 
 class Settings:
+    """A class to store settings for the game."""
     def __init__(self, savepath, **defaults) -> None:
         self.values = defaults
         self.sp = Path(savepath)

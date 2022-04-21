@@ -5,7 +5,7 @@ from unoengine import card_to_id, id_to_card, Card
 import pygame
 import socket
 
-__version__ = "1.8.1"
+__version__ = "1.8.3"
 
 SCREENSIZE = (1000, 600)
 screen = pygame.display.set_mode(SCREENSIZE)
@@ -22,6 +22,7 @@ game_on = True
 state = 'menu'
 
 def connect_to_game(addr):
+    """Creates a global client instance and connects to the given address."""
     global global_client, ipaddrentry
     if not global_client:
         try:
@@ -36,6 +37,7 @@ def connect_to_game(addr):
 
 
 def host_game():
+    """Creates a global server instance and starts the lobby."""
     global global_server
     if not global_server:
         global_server = Server(__version__, settings)
@@ -197,7 +199,7 @@ def waitroomtick():
     update_objects(readybtn, infomsg, readystatus, hostlbl, totalplbl, iplbl if not shown_addr else addrlbl)
 
 def gametick():
-    global global_client, drewncards, state, anim_state, animbuffer, drewnplayers
+    global global_client, drewncards, state, anim_state, animbuffer, drewnplayers, topcard_cachetimer
     cl: Client = global_client
 
     def draw_players():
@@ -439,7 +441,25 @@ def gametick():
 
     def anim_tick():
         global anim_state, animbuffer
+        # tick the animations
+
+        animbuffer = [[s,d,r,t,st,w] for (s,d,r,t,st,w) in animbuffer if t > 0]
+
+        for index, (source, dest, surface, tick, start_tick, wait_ticks) in enumerate(animbuffer):
+            if wait_ticks > 0:
+                wait_ticks -= 1
+            else:
+                tick -= 1
+                diff = (dest[0] - source[0], dest[1] - source[1]) # also divide by the tick difference
+                pos = (diff[0] / start_tick * (start_tick - tick), diff[1] / start_tick * (start_tick - tick))
+                screen.blit(surface, surface.get_rect(center=(source[0] + pos[0], source[1] + pos[1])))
+            animbuffer[index] = (source, dest, surface, tick, start_tick, wait_ticks)
+
+
+        # possibly add new animations, if the game is over then dont.
         newstate = collect_anim_state()
+        if not newstate['topcard']:
+            return
         if newstate != anim_state:
             cardcache = {}
             # if a player took +2 or +4, display that
@@ -485,23 +505,12 @@ def gametick():
 
             anim_state = newstate
 
-        animbuffer = [[s,d,r,t,st,w] for (s,d,r,t,st,w) in animbuffer if t > 0]
-
-        for index, (source, dest, surface, tick, start_tick, wait_ticks) in enumerate(animbuffer):
-            if wait_ticks > 0:
-                wait_ticks -= 1
-            else:
-                tick -= 1
-                diff = (dest[0] - source[0], dest[1] - source[1]) # also divide by the tick difference
-                pos = (diff[0] / start_tick * (start_tick - tick), diff[1] / start_tick * (start_tick - tick))
-                screen.blit(surface, surface.get_rect(center=(source[0] + pos[0], source[1] + pos[1])))
-            animbuffer[index] = (source, dest, surface, tick, start_tick, wait_ticks)
 
     if not cl.topcard:
         if len(animbuffer) > 0:
             anim_tick()
         elif topcard_cachetimer and topcard_cachetimer > 0:
-            pass
+            topcard_cachetimer -= 1
         else:
             state = "wait"
         return
@@ -509,7 +518,6 @@ def gametick():
     if cl.stopped:
         print("Connection to the server has been ended. If this is shouldn't have happened, check the 'client.log' file for the error.")
         return stop_game()
-
 
     if not anim_state:
         draw_players()
@@ -522,7 +530,6 @@ def gametick():
     draw_players()
     draw_deck()
 
-
     draw_drawbtn()
 
     # we don't need the arrows if there are 2 people.
@@ -530,7 +537,6 @@ def gametick():
         draw_clockwise()
 
     update_draw_check_mousebtn()
-
 
 def settingstick():
     for event in pygame.event.get():
@@ -558,10 +564,14 @@ while game_on:
             waitroomtick()
         elif state == 'settings':
             settingstick()
-        else:
+        elif state == 'game':
             gametick()
+        else:
+            raise ValueError('Unknown state: %s' % state)
 
         clock.tick(60)
         pygame.display.flip()
     except KeyboardInterrupt:
+        import traceback
+        traceback.print_exc()
         stop_game()

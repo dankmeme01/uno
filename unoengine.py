@@ -34,18 +34,19 @@ for x in range(0,2):
         cards.append(Card('wild', ['color', '+4'][x]))
 
 # cards is a full deck of uno, 108 cards
-# i need to clean this up though
-# alot of garbage-
 
 def card_to_id(card: Card) -> str:
+    """Converts a Card tuple to a simple string."""
     if type(card) == list:
         card = Card(*card)
     return card.color + '_' + str(card.type)
 
 def id_to_card(id: str) -> Card:
+    """Converts a card string to a Card tuple."""
     return Card(*id.split('_'))
 
 class Player:
+    """A class for storing player's information."""
     def __init__(self, name):
         self.deck : list[Card] = []
         self.name = name
@@ -59,17 +60,14 @@ class Player:
         return self.name
 
     def hascard(self, search):
+        """Checks if the player has a card with the given color and type."""
         for card in self.deck:
-            if card.color == search.color \
-            or card.type == search.type \
-            or card.color == 'wild' \
-            or search.color == 'wild' \
-            or card.type == 'color' \
-            or card.type == '+4':
+            if (card.color == search.color or card.color == 'wild' or search.color == 'wild') and card.type == search.type:
                 return True
         return False
 
     def removecard(self, search):
+        """Removes a card from the player's deck."""
         for n, card in enumerate(self.deck):
             if (card.color == search.color or search.type in ('+4', 'color')) and card.type == search.type:
                 self.deck.pop(n)
@@ -77,6 +75,7 @@ class Player:
         return False
 
 class Table:
+    """A table for the UNO game."""
     def __init__(self):
         self.players: list[Player] = []
         self.clockwise = True
@@ -87,12 +86,14 @@ class Table:
         self.lastwinner = None
 
     def add_player(self, playername):
+        """Adds a player to the table."""
         if self.started:
             raise ValueError("Game has already started.")
         self.players.append(Player(playername))
 
     def remove_player(self, playername):
-        player = self.getplayer(playername)
+        """Removes the player with the given name."""
+        player = self.get_player(playername)
         pindex = self.players.index(player)
         cachemoving = False
         if self.moving == pindex:
@@ -103,6 +104,7 @@ class Table:
             self.nextmoving()
 
     def get_ready_players(self):
+        """Returns the number of ready players."""
         n = 0
         for p in self.players:
             if p.ready:
@@ -110,21 +112,25 @@ class Table:
         return n
 
     def check_all_ready(self):
+        """Checks if all players are ready."""
         return self.get_ready_players() == len(self.players)
 
     def get_player(self, name):
+        """Returns the player with the given name."""
         for i in self.players:
             if i.name == name:
                 return i
         return None
 
     def indexof(self, name):
+        """Returns the index of the player with the given name."""
         for i in self.players:
             if i.name == name:
                 return self.players.index(i)
         return None
 
     def check_cards(self):
+        """Checks if the deck has no cards left."""
         if len(self.deck) == 0:
             self.deck = self.placedeck.copy()
             self.deck.remove(self.topcard)
@@ -136,6 +142,7 @@ class Table:
             self.placedeck.append(self.topcard)
 
     def start(self):
+        """Starts the game, initializing the neeeded values."""
         self.clockwise = True
         self.deck = cards.copy()
         topcard = random.choice(self.deck)
@@ -161,17 +168,15 @@ class Table:
         self.started = True
 
     def can_place(self, card):
-        return card.color == self.topcard.color \
-            or card.type == self.topcard.type \
-            or card.color == 'wild' \
-            or self.topcard.color == 'wild' \
-            or card.type == 'color' \
-            or card.type == '+4'
+        """Checks if the card can be placed on the table."""
+        return (card.color == self.topcard.color or card.type in ('color', '+4') or self.topcard.color == 'wild') or card.type == self.topcard.type
 
     def validate_move(self, player: Player, card):
+        """Checks if the player can place the card."""
         return self.can_place(card) and player.hascard(card)
 
     def nextmoving(self):
+        """Moves the moving index to the next player."""
         self.moving = self.moving + (1 if self.clockwise else -1)
         if self.moving >= len(self.players):
             self.moving = 0
@@ -179,6 +184,8 @@ class Table:
             self.moving = len(self.players) - 1
 
     def place(self, player: Player, card):
+        """Places a card on the table."""
+
         # no checks because we assume server is good :)
         player.removecard(card)
         self.placedeck.append(card)
@@ -219,6 +226,7 @@ class Table:
                 break
 
     def draw(self, player: Player) -> Card:
+        """Draws a card from the deck and adds it to the player's deck."""
         self.check_cards()
         card = self.deck.pop()
         if not self.can_place(card):
@@ -226,13 +234,3 @@ class Table:
             self.nextmoving()
             return False
         return card
-
-    def getplayer(self, name):
-        plnames = [i.name for i in self.players]
-        if name in plnames:
-            for i in self.players:
-                if i.name == name:
-                    return i
-
-        else:
-            return None

@@ -5,4 +5,8 @@ cards.psd
 
 sheet_tools/
 .settings
+.bot_settings
+
+sheet_tools/out
 logs/
+bot_logs/
